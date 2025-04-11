@@ -1,0 +1,55 @@
+variables:
+  - name: resourceName
+    value: 'xxxxxx' # Replace with your resouce name in Azure
+  - name: env
+    value: 'dev'
+  - name: jobEnv
+    value: 'xxxxx-dev' # Replace with your application name
+  - name: serviceEndpointName
+    value: 'xxxxxxxx' # Replace with your serice connection name in Azure DevOps
+  - name: terraformStateFile
+    value: 'xxxxxx-dev.tfstate' # Replace with your application name
+  - name: subscriptionId
+    value: 'xxxx-xxxxx-xxxx-xxx-xxxxxxxxx' # Replace with your subscription Id
+  - name: resourceGroupName
+    value: 'NA'
+  - name: location
+    value: 'xxxxxx' # Replace with your location like: North Central US
+  - name: createServicePlan
+    value: 'true'
+  - name: servicePlanName
+    value: 'xxxxxxx' # Replace with your service Plan Name if you have in Azure
+  - name: sku
+    value: 'S1'
+  - name: accessRulesEnabled
+    value: 'false'
+  - name: createInsight
+    value: 'true'
+  - name: insightName
+    value: 'xxxxxxxx'  # Replace with your insight Name if you have in Azure
+  - name: insightLocation
+    value: 'xxxxxxxx' # Replace with your insight location like: North Central US
+  - name: insightWorkspaceId
+    value: '/subscriptions/xxxxx-xxxx-xxx-xxxx-xx/resourcegroups/xxxxxx/providers/microsoft.operationalinsights/workspaces/xxxxxxx' # Replace with your insight workspace id in Azure
+  - name: sqlServerName
+    value: 'xxxxxxxxxx'  # Replace with your sqlServer Name in Azure
+  - name: sqlDatabaseName
+    value: 'xxxxxxxxxxx'  # Replace with your sqlServer database Name in Azure
+  - name: sqlServiceEndpointName
+    value: 'xxxxxxxx'  # Replace with your sqlServer service connectin Name in Azure DevOps
+  - name: createKeyVault
+    value: 'false'
+  - name: keyVaultName
+    value: 'xxxxxxxxx' # Replace with your key Vault Name in Azure
+  - name: createStorage
+    value: 'false'
+  - name: storageName
+    value: 'xxxxxxxxx' # Replace with your storage Name in Azure
+  - name: createRedis
+    value: 'false'
+  - name: redisName
+    value: 'xxxxxxxx'  # Replace with your redis Name in Azure
+  - name: WebServers
+    value: 'xxxx.xxxx.xxxx.xxxx'  # Replace with your server ip or hostname in Azure
+  - name: Username
+    value: 'xxxxxxx'   # Replace with your server's username
