@@ -1,0 +1,61 @@
+trigger:
+  - none
+
+
+parameters:
+  - name: EnvName
+    displayName: EnvName
+    type: string
+    default: sb001
+    values:
+    - sb001
+    - np002
+    - pd002
+
+  - name: typeMonitorSettings
+    displayName: Choose the type of MonitorSettings
+    type: string
+    default: Cost-optimized
+    values:
+    - Standard
+    - Cost-optimized
+
+  - name: ChangeNumber
+    displayName: ChangeNumber
+    type: string
+    default: 'CHG0000000'
+
+variables:
+- group: AKS-vargroup
+- template: ../vars/var-${{ parameters.EnvName }}.yml
+
+pool:
+  name: WindowsDevOps
+
+jobs:
+  - job: UpdateContainerLogV2
+    displayName: Update ContainerLogV2
+    steps:
+    - ${{ if eq(parameters.typeMonitorSettings, 'Standard') }}:
+      - task: AzureCLI@2
+        displayName: Update ContainerLogV2_${{ parameters.typeMonitorSettings }}
+        name: UpdateContainerLogV2
+        inputs:
+          azureSubscription: ${{ variables.azureserviceEndpointName }}
+          scriptType: ps
+          scriptLocation: inlineScript
+          inlineScript: |
+            $logAnalyticsWorkspaceResourceID=$(az aks show -g $(resourcegroup) -n $(cluster) --query "addonProfiles.omsagent.config.logAnalyticsWorkspaceResourceID" --output tsv)
+            az aks addon update -a monitoring -g $(resourcegroup) -n $(cluster) --workspace-resource-id $logAnalyticsWorkspaceResourceID --data-collection-settings ContainerlogV2\dataCollectionSettings-standard.json
+      
+    - ${{ if eq(parameters.typeMonitorSettings, 'Cost-optimized') }}:
+      - task: AzureCLI@2
+        displayName: Update ContainerLogV2_${{ parameters.typeMonitorSettings }}
+        name: UpdateContainerLogV2
+        inputs:
+          azureSubscription: ${{ variables.azureserviceEndpointName }}
+          scriptType: ps
+          scriptLocation: inlineScript
+          inlineScript: |
+            $logAnalyticsWorkspaceResourceID=$(az aks show -g $(resourcegroup) -n $(cluster) --query "addonProfiles.omsagent.config.logAnalyticsWorkspaceResourceID" --output tsv)
+            az aks addon update -a monitoring -g $(resourcegroup) -n $(cluster) --workspace-resource-id $logAnalyticsWorkspaceResourceID --data-collection-settings ContainerlogV2\dataCollectionSettings-Cost-optimized.json

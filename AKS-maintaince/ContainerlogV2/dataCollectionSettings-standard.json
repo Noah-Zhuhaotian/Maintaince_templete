@@ -1,0 +1,6 @@
+{
+  "interval": "1m",
+  "namespaceFilteringMode": "Off",
+  "enableContainerLogV2": true, 
+  "streams": ["Microsoft-ContainerInsights-Group-Default"]
+}

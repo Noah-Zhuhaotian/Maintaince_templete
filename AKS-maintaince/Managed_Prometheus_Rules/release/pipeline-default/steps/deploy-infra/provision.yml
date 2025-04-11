@@ -1,0 +1,82 @@
+parameters:
+  jobEnv: ''
+  serviceEndpointName: ''
+  resourceGroupName: ''
+  RuleGroupsToDelete: 'NA'
+  runDeleteRuleGroups: false
+
+jobs:
+  - deployment: DeployInfra
+    displayName: DeployInfra
+    pool:
+      vmImage: 'windows-latest'
+    environment: ${{ parameters.jobEnv }}
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+            - checkout: self
+
+            - ${{ if eq(parameters.runDeleteRuleGroups, false) }}:
+              - task: replacetokens@5
+                displayName: 'Replace parameter value'
+                inputs:
+                  targetFiles: 'Managed_Prometheus_Rules\release\pipeline-default\steps\deploy-infra\params.json'
+                  tokenPattern: rm
+                  escapeType: none
+
+            - ${{ if ne(parameters.runDeleteRuleGroups, false) }}:
+              - task: AzureCLI@2
+                displayName: To delete resource
+                inputs:
+                  azureSubscription: ${{ parameters.serviceEndpointName }}
+                  scriptType: pscore
+                  scriptLocation: inlineScript
+                  inlineScript: |  
+                    az account set `
+                      --subscription $(subscriptionId)
+                    az alerts-management prometheus-rule-group delete -n ${{ parameters.RuleGroupsToDelete }} -g ${{ parameters.resourcegroup }}
+
+            - ${{ if eq(parameters.runDeleteRuleGroups, false) }}:
+              - task: AzureCLI@2
+                displayName: Bicep - Validate
+                inputs:
+                  azureSubscription: ${{ parameters.serviceEndpointName }}
+                  scriptType: pscore
+                  scriptLocation: inlineScript
+                  inlineScript: |     
+                    az deployment group validate `
+                      --resource-group $(resourcegroup) `
+                      --subscription $(subscriptionId) `
+                      --template-file "$(System.DefaultWorkingDirectory)\Managed_Prometheus_Rules\release\pipeline-default\steps\deploy-infra\main.bicep" `
+                      --parameters "$(System.DefaultWorkingDirectory)\Managed_Prometheus_Rules\release\pipeline-default\steps\deploy-infra\params.json"                 
+
+            - ${{ if eq(parameters.runDeleteRuleGroups, false) }}:
+              - task: AzureCLI@2
+                displayName: Bicep - Deploy
+                inputs:
+                  azureSubscription: ${{ parameters.serviceEndpointName }}
+                  scriptType: pscore
+                  scriptLocation: inlineScript
+                  inlineScript: |     
+                    az deployment group create `
+                      --name $(resourceName)-$(Build.BuildId) `
+                      --resource-group $(resourcegroup) `
+                      --subscription $(subscriptionId) `
+                      --template-file "$(System.DefaultWorkingDirectory)\Managed_Prometheus_Rules\release\pipeline-default\steps\deploy-infra\main.bicep" `
+                      --parameters "$(System.DefaultWorkingDirectory)\Managed_Prometheus_Rules\release\pipeline-default\steps\deploy-infra\params.json"      
+            
+            - ${{ if eq(parameters.runDeleteRuleGroups, false) }}:
+              - task: AzureCLI@2
+                displayName: Bicep - Wait for created
+                inputs:
+                  azureSubscription: ${{ parameters.serviceEndpointName }}
+                  scriptType: pscore
+                  scriptLocation: inlineScript
+                  inlineScript: |     
+                    az deployment group wait --created `
+                      --name $(resourceName)-$(Build.BuildId) `
+                      --resource-group $(resourcegroup) `
+                      --subscription $(subscriptionId)  
+
+

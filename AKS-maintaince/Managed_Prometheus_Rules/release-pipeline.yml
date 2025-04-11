@@ -1,0 +1,52 @@
+trigger:
+  - none
+
+pool:
+  name: WindowsDevOps
+
+parameters:
+  - name: EnvName
+    displayName: EnvName
+    type: string
+    default: np002
+    values:
+    - np002
+    - pd002
+
+  - name: ChangeNumber
+    displayName: ChangeNumber
+    type: string
+    default: 'CHG0000000'
+
+  - name: RuleGroupsToDelete
+    displayName: Rule Groups To Delete
+    type: string
+    default: 'NA'
+
+  - name: runDeleteRuleGroups
+    displayName: run Delete Rule Groups
+    type: boolean
+    default: false
+
+variables:
+- group: AKS-vargroup
+- template: ../vars/var-${{ parameters.EnvName }}.yml
+
+stages:
+  - stage: Create_Alert_Rules_in_${{ parameters.EnvName }}
+    jobs:
+      - template: release/pipeline-default/steps/deploy-infra/provision.yml
+        parameters:
+          jobEnv: ${{ variables.jobEnv }}
+          serviceEndpointName: ${{ variables.azureserviceEndpointName }}
+          resourcegroup: ${{ variables.resourcegroup }}
+          RuleGroupsToDelete: ${{ parameters.RuleGroupsToDelete }}
+          runDeleteRuleGroups: ${{ parameters.runDeleteRuleGroups }}
+
+
+
+
+
+
+
+

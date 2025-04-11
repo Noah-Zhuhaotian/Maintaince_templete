@@ -1,0 +1,33 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+      "location": {
+        "value": "__amwLocation__"
+      },
+      "aksResourceId": {
+        "value": "/subscriptions/__subscriptionId__/resourcegroups/__resourcegroup__/providers/Microsoft.ContainerService/managedClusters/__cluster__"
+      },
+      "devActionGroupResourceId": {
+        "value": "/subscriptions/__actiongroupsubid__/resourceGroups/__actionresourcegroupNP__/providers/microsoft.insights/actionGroups/__devactiongroupname__"
+      },
+      "testActionGroupResourceId": {
+        "value": "/subscriptions/__actiongroupsubid__/resourceGroups/__actionresourcegroupNP__/providers/microsoft.insights/actionGroups/__testactiongroupname__"
+      },
+      "emailActionGroupResourceId": {
+        "value": "/subscriptions/__subscriptionId__/resourceGroups/__actionresourcegroupEmail__/providers/microsoft.insights/actionGroups/__emailactiongroupname__"
+      },
+      "monitorWorkspaceName": {
+        "value": "__WorkspaceName__"
+      },
+      "severitynode": {
+        "value": __severitynode__
+      },
+      "severitynamespace": {
+        "value": __severitynamespace__
+      },
+      "severitycluster": {
+        "value": __severitycluster__
+      }
+    }
+}

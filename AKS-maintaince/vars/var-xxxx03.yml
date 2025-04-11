@@ -1,0 +1,105 @@
+variables:
+  - name: location
+    value: "xxxxxxxxxx" # Replace with your aks cluster location
+  - name: subscription
+    value: xxx-xxx-xxx-xxx-01 # Replace with your subscription id in Azure
+  - name: serviceEndpointName
+    value: "xxxxxxx"   # Replace with your service connection name in Azure DevOps for admin
+  - name: backupEndpointName
+    value: "aks-np-002_sa-reader"  # Replace with your service connection name in Azure DevOps for reader
+  - name: IngressControllerIP
+    value: "xx.xx.xx.xx"  # Replace with your ingress controller IP address you set up with Azure CNI
+  - name: releaseName
+    value: "xxxxxxx"  # Replace with your release name in Azure DevOps
+  - name: namespace-monitoring
+    value: "xxxxxxx"   # Replace with your namespace name for moitoring in AKS
+  - name: monitoring-release
+    value: "xxxxxxx"  # Replace with your monitoring release name for moitoring in AKS
+  - name: valuepath
+    value: "value.yaml" # Replace with your Prometheus value name for moitoring in AKS you should download it into and set up these values
+  - name: azureserviceEndpointName
+    value: "xxxxxxxx"  # Replace with your service connection name in Azure 
+  - name: resourcegroup
+    value: "xxxxxxxx"  # Replace with your resource group name of AKS in Azure 
+  - name: cluster
+    value: "xxxxxxxx"  # Replace with your AKS cluster name in Azure
+  - name: appmaxcount
+    value: "10"
+  - name: appmincount
+    value: "2"
+  - name: appnodecount
+    value: "6"
+  - name: apposdisksize
+    value: "256"
+  - name: apposdisktype
+    value: "Ephemeral"
+  - name: appvmsize
+    value: "Standard_E8ds_v5"  # Replace with your AKS system OS type in AKS
+  - name: inframaxcount
+    value: "4"
+  - name: inframincount
+    value: "2"
+  - name: infranodecount
+    value: "2"
+  - name: infraosdisksize
+    value: "0"
+  - name: infraosdisktype
+    value: "Ephemeral"
+  - name: infravmsize
+    value: "Standard_D8ds_v5"  # Replace with your AKS system OS type in AKS
+  - name: systemmaxcount
+    value: "2"
+  - name: systemmincount
+    value: "1"
+  - name: systemnodecount
+    value: "1"
+  - name: systemosdisksize
+    value: "0"
+  - name: systemosdisktype
+    value: "Ephemeral"
+  - name: systemvmsize
+    value: "Standard_D16ds_v5"  # Replace with your AKS system OS type in AKS
+  - name: maxpods
+    value: "100"
+  - name: resourcegrouppv
+    value: "xxxxxxxx"   # Replace with your AKS mc cluster resource group name eg. MC_xxxxxxx_xxxxxxx_eastus
+  - name: defaultresourcequota_cpu_limit
+    value: "2"
+  - name: defaultresourcequota_mem_limit
+    value: "10Gi"
+  - name: mediumresourcequota_cpu_limit
+    value: "8"
+  - name: mediumresourcequota_mem_limit
+    value: "64Gi"
+  - name: largeresourcequota_cpu_limit
+    value: "16"
+  - name: largeresourcequota_mem_limit
+    value: "128Gi"
+  - name: subscriptionId
+    value: "xxxxxx-xxx-xxxx-xxxx-xxxxxx" # Replace with your subscription id in Azure
+  - name: amwLocation
+    value: "eastus"   # Replace with your aks managed monitoring location
+  - name: actiongroupsubid
+    value: "xxxxxx-xxx-xxxx-xxxx-xxxxxxx"  # Replace with your action group subscription id in Azure
+  - name: actionresourcegroupNP
+    value: "xxxxxxxxxxxx"    # Replace with your action group resource group name in Azure
+  - name: actionresourcegroupEmail
+    value: "xxxxxxxxxxxx"    # Replace with your email action group resource group name in Azure
+  - name: devactiongroupname
+    value: "xxxxxxxxxxxx"  # Replace with your email action group resource group name in Azure
+  - name: testactiongroupname
+    value: "xxxxxxxxxxxx"   # Replace with your email action group resource group name in Azure
+  - name: emailactiongroupname
+    value: "xxxxxxxx"   # Replace with your email action group resource group name in Azure
+  - name: resourceName
+    value: "xxxxxxxxxx"  # Replace with your resource name in Azure
+  - name: jobEnv
+    value: "xxxxxx"  # Replace with your job environment name in Azure DevOps
+  - name: WorkspaceName
+    value: "xxxxxx"  # Replace with your monitoring workspace name in Azure 
+  - name: severitynode
+    value: 3
+  - name: severitynamespace
+    value: 3
+  - name: severitycluster
+    value: 3

@@ -1,0 +1,80 @@
+trigger:
+  - none
+
+# Replace "xxxx" with your each AKS environment name
+# Replace "xxxxxxxxx-dev" with your namespace of your applincation on AKS cluster
+
+
+parameters:
+  - name: EnvName
+    displayName: EnvName
+    type: string
+    default: xxxx
+    values:
+    - xxxx
+    - xxxx
+    - xxxx
+
+  - name: apppool
+    displayName: apppool
+    type: boolean
+    default: true
+  
+  - name: infrapool
+    displayName: infrapool
+    type: boolean
+    default: false
+  
+  - name: systempool
+    displayName: systempool
+    type: boolean
+    default: false
+
+
+variables:
+- group: AKS-vargroup
+- template: ../vars/var-${{ parameters.EnvName }}.yml
+
+pool:
+  name: WindowsDevOps
+
+  
+stages: 
+  - stage: Add_AKS_${{ parameters.EnvName }}_nodepool
+    jobs:
+      - job: Addnodepool
+        displayName: Add Node Pool 
+        steps:
+        - task: AzureCLI@2
+          displayName: Add Node Pool
+          name: AddNodePool
+          inputs:
+            azureSubscription: ${{ variables.azureserviceEndpointName }}
+            scriptType: ps
+            scriptLocation: 'scriptPath'
+            scriptPath: '$(System.DefaultWorkingDirectory)/nodepool/scripts/aks-addsinglenodepool.ps1'
+            arguments:
+              -resourcegroup '$(resourcegroup)'
+              -cluster '$(cluster)'
+              -appmaxcount '$(appmaxcount)'
+              -appmincount '$(appmincount)'
+              -appnodecount '$(appnodecount)'
+              -apposdisksize '$(apposdisksize)'
+              -apposdisktype '$(apposdisktype)'
+              -appvmsize '$(appvmsize)'
+              -inframaxcount '$(inframaxcount)'
+              -inframincount '$(inframincount)'
+              -infranodecount '$(infranodecount)'
+              -infraosdisksize '$(infraosdisksize)'
+              -infraosdisktype '$(infraosdisktype)'
+              -infravmsize '$(infravmsize)'
+              -systemmaxcount '$(systemmaxcount)'
+              -systemmincount '$(systemmincount)'
+              -systemnodecount '$(systemnodecount)'
+              -systemosdisksize '$(systemosdisksize)'
+              -systemosdisktype '$(systemosdisktype)'
+              -systemvmsize '$(systemvmsize)'
+              -maxpods '$(maxpods)'
+              -Isaddapppool '${{ parameters.apppool }}'
+              -Isaddinfrapool '${{ parameters.infrapool }}'
+              -Isaddsystempool '${{ parameters.systempool }}'

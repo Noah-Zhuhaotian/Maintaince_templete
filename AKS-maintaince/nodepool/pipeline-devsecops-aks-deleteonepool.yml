@@ -1,0 +1,132 @@
+trigger:
+  - none
+
+pool:
+  name: WindowsDevOps
+
+# Replace "xxxx" with your each AKS environment name
+# Replace "xxxxxxxxx-dev" with your namespace of your applincation on AKS cluster
+
+
+parameters:
+  - name: EnvName
+    displayName: EnvName
+    type: string
+    default: xxxx
+    values:
+    - xxxx
+    - xxxx
+    - xxxx
+
+  - name: nodepoolName
+    displayName: nodepool name
+    type: string
+    default: 'apppool00'
+
+  - name: DeleteNodePools
+    displayName: Delete Node Pools
+    type: boolean
+    default: false
+
+
+variables:
+- group: AKS-vargroup
+- template: ../vars/var-${{ parameters.EnvName }}.yml
+
+stages:
+  - stage: DrainNodePool
+    jobs:
+      - job: VaildateautoScaling
+        steps:
+        - task: AzureCLI@2
+          displayName: Vaildate autoScaling
+          name: VaildateautoScaling
+          inputs:
+            azureSubscription: ${{ variables.azureserviceEndpointName }}
+            scriptType: ps
+            scriptLocation: inlineScript
+            inlineScript: |
+              $Getautoscaling=$(az aks nodepool list --cluster-name $(cluster) --resource-group $(resourcegroup) --out tsv --query '[].[name, enableAutoScaling]' | findstr '${{ parameters.nodepoolName }}')
+              Write-Host "##vso[task.setvariable variable=autoScale;isOutput=true]$Getautoscaling"
+        
+      - job: DisableAutoscaler 
+        condition: contains(dependencies.VaildateautoScaling.outputs['VaildateautoScaling.autoScale'], 'True')
+        dependsOn: VaildateautoScaling
+        steps:
+        - task: AzureCLI@2
+          displayName: Disable Autoscaler
+          inputs:
+            azureSubscription: ${{ variables.azureserviceEndpointName }}
+            scriptType: ps
+            scriptLocation: inlineScript
+            inlineScript: |
+              az aks nodepool update --cluster-name $(cluster) --resource-group $(resourcegroup) --name ${{ parameters.nodepoolName }} --disable-cluster-autoscaler --no-wait
+
+      - job: GetNodenames
+        dependsOn: DisableAutoscaler
+        condition: and(not(failed()), not(canceled()))
+        steps:
+        - task: Kubernetes@1
+          displayName: Get nodes
+          name: GetNodes
+          inputs:
+            connectionType: Kubernetes Service Connection
+            kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+            command: get
+            arguments: nodes
+            outputFormat: jsonpath='{.items[*].metadata.name}'
+        
+        - task: PowerShell@2
+          displayName: 'Set nodename'
+          name: setnodename
+          inputs:
+            targetType: 'inline'
+            script: |
+              Write-Host "##vso[task.setvariable variable=nodenameoutput;isOutput=true]$(GetNodes.KubectlOutput)"
+
+        - task: PowerShell@2
+          name: ClearString
+          displayName: Clear String
+          inputs:
+            targetType: 'inline'
+            script: |
+              $clearString = $(setnodename.nodenameoutput).Trim(",").replace(","," ").replace("  "," ").Trim()
+              $nodenames1 = $clearString -split " "
+              $nodenames2 = $nodenames1 -match '${{ parameters.nodepoolName }}'
+              Write-Host "##vso[task.setvariable variable=node;isOutput=true]$nodenames2"
+
+      - job: CordonandDrainnodes
+        dependsOn: GetNodenames
+        variables:
+          NodesNames: $[ dependencies.GetNodenames.outputs['ClearString.node'] ]
+        condition: not(eq(dependencies.GetNodenames.outputs['ClearString.node'], ''))
+        steps:
+        - task: Kubernetes@1
+          displayName: Cordoning marks specified nodes
+          inputs:
+            connectionType: Kubernetes Service Connection
+            kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+            command: cordon
+            arguments: $(NodesNames)
+
+        - task: Kubernetes@1
+          displayName: Drain the existing nodes
+          inputs:
+            connectionType: Kubernetes Service Connection
+            kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+            command: drain
+            arguments: $(NodesNames) --ignore-daemonsets --delete-emptydir-data --grace-period=60
+
+      - ${{ if eq(parameters.DeleteNodePools, true) }}:
+        - job: DeleteNodepool
+          dependsOn: CordonandDrainnodes
+          condition: and(not(failed()), not(canceled()))
+          steps:
+          - task: AzureCLI@2
+            displayName: Delete Nodepool
+            inputs:
+              azureSubscription: ${{ variables.azureserviceEndpointName }}
+              scriptType: ps
+              scriptLocation: inlineScript
+              inlineScript: |
+                az aks nodepool delete --resource-group $(resourcegroup) --cluster-name $(cluster) --name ${{ parameters.nodepoolName }} --no-wait

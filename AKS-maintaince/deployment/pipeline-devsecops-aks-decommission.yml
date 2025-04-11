@@ -1,0 +1,114 @@
+trigger:
+  - none
+
+pool:
+  name: WindowsDevOps
+
+parameters:
+  - name: EnvName
+    displayName: EnvName
+    type: string
+    default: sb001
+    values:
+    - sb001
+    - np002
+    - pd002
+
+  - name: namespace
+    displayName: namespace
+    type: string
+    default: 'apm0000001-dev'
+
+  - name: ChangeNumber
+    displayName: ChangeNumber
+    type: string
+    default: 'CHG0000000'
+
+variables:
+- group: AKS-vargroup
+- template: ../vars/var-${{ parameters.EnvName }}.yml
+
+stages:
+  - stage: UninstallApplication
+    jobs:
+      - job: GetReleaseName
+        displayName: Get Release Name
+        steps:
+        - task: HelmDeploy@0
+          displayName: Get Release Name
+          name: Getreleasename
+          inputs:
+            connectionType: Kubernetes Service Connection
+            kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+            namespace: ${{ parameters.namespace }}
+            command: 'ls'
+            arguments: -q
+
+        - task: PowerShell@2
+          displayName: 'set variable'
+          name: setvariable
+          inputs:
+            targetType: 'inline'
+            script: |
+              $a = '$(Getreleasename.helmOutput)'
+              Write-Host "##vso[task.setvariable variable=releaseName;isOutput=true]$a"
+      
+      - job: uninstallApplication
+        displayName: uninstall Application
+        dependsOn: GetReleaseName
+        condition: not(contains(dependencies.GetReleaseName.outputs['setvariable.releaseName'], 'helmOutput'))
+        variables:
+          releaseName:  $[ dependencies.GetReleaseName.outputs['setvariable.releaseName'] ] 
+        steps:
+        - task: HelmDeploy@0
+          displayName: Uninstall
+          name: Uninstall
+          inputs:
+            connectionType: Kubernetes Service Connection
+            kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+            namespace: ${{ parameters.namespace }}
+            command: 'uninstall'
+            arguments: $(releaseName)
+            
+      - job: ValidateRelease
+        displayName: Validate Release
+        dependsOn: 
+          - GetReleaseName
+          - uninstallApplication
+        condition: and(not(failed()), not(canceled()))
+        steps:
+        - task: HelmDeploy@0
+          displayName: validate Release
+          name: validateRelease
+          inputs:
+            connectionType: Kubernetes Service Connection
+            kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+            namespace: ${{ parameters.namespace }}
+            command: 'ls'
+            arguments: -q
+      
+        - task: PowerShell@2
+          displayName: 'set validate variable'
+          name: setvalidatevariable
+          inputs:
+            targetType: 'inline'
+            script: |
+              $a = '$(validateRelease.helmOutput)'
+              Write-Host "##vso[task.setvariable variable=releaseNameifexsit;isOutput=true]$a"
+
+      - job: DeleteNamespace
+        displayName: Delete Namespace
+        dependsOn: 
+          - GetReleaseName
+          - uninstallApplication
+          - ValidateRelease
+        condition: and(contains(dependencies.ValidateRelease.outputs['setvalidatevariable.releaseNameifexsit'],'helmOutput'),not(failed()), not(canceled()))
+        steps:
+        - task: Kubernetes@1
+          displayName: Delete Namespace
+          inputs:
+            connectionType: Kubernetes Service Connection
+            kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+            command: delete
+            arguments: namespace ${{ parameters.namespace }}
+            outputFormat: none
