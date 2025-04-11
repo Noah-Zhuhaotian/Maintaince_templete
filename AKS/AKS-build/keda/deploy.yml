@@ -1,0 +1,60 @@
+jobs:
+  - job: VaildateKedafeature
+    displayName: Vaildate Keda feature
+    steps:
+      - task: AzureCLI@2
+        displayName: Get Keda Feature
+        name: GetKedaFeature
+        inputs:
+          azureSubscription: ${{ parameters.servicePrincipleName }}
+          scriptType: ps
+          scriptLocation: inlineScript
+          inlineScript: |
+            $kedafeature1=$(az feature show --namespace "Microsoft.ContainerService" --name "AKS-KedaPreview" --query "[properties]" --output tsv)
+            Write-Host "##vso[task.setvariable variable=kedafeature;isOutput=true]$kedafeature1"         
+
+  - job: RegistertheKedaPreview
+    displayName: Register the KedaPreview
+    dependsOn: VaildateKedafeature
+    condition: not(eq(dependencies.VaildateKedafeature.outputs['GetKedaFeature.kedafeature'], 'Registered'))
+    steps:
+      - task: AzureCLI@2
+        displayName: Get Keda Feature
+        name: GetKedaFeature
+        inputs:
+          azureSubscription: ${{ parameters.servicePrincipleName }}
+          scriptType: ps
+          scriptLocation: inlineScript
+          inlineScript: |
+            az feature register --namespace "Microsoft.ContainerService" --name "AKS-KedaPreview"
+
+  - job: VaildateKeda
+    displayName: Vaildate Keda
+    dependsOn: RegistertheKedaPreview
+    condition: and( not(failed()), not(canceled()))
+    steps:
+      - task: AzureCLI@2
+        displayName: Get Keda
+        name: GetKeda
+        inputs:
+          azureSubscription: ${{ parameters.servicePrincipleName }}
+          scriptType: ps
+          scriptLocation: inlineScript
+          inlineScript: |
+            $keda1=$(az aks show -g $(resourcegroup) --name $(clustername) --query "workloadAutoScalerProfile.keda.enabled")
+            Write-Host "##vso[task.setvariable variable=keda;isOutput=true]$keda1"
+
+  - job: EnableKeda
+    displayName: Enable Keda
+    dependsOn: VaildateKeda
+    condition: not(eq(dependencies.VaildateKeda.outputs['GetKeda.keda'], 'true'))
+    steps:
+      - task: AzureCLI@2
+        displayName: Enable Keda
+        name: EnableKeda
+        inputs:
+          azureSubscription: ${{ parameters.servicePrincipleName }}
+          scriptType: ps
+          scriptLocation: inlineScript
+          inlineScript: |
+            az aks update --resource-group $(resourcegroup) --name $(clustername) --enable-keda

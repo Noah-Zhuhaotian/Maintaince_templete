@@ -1,0 +1,57 @@
+#### namespace for shared ingress controller ####
+### kubectl get namespace basic-ic
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: basic-ic
+
+#### namespace for shared service accounts ####
+### kubectl get namespace basic-sa
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: basic-sa
+
+# basic-wid will be created in step of deploying wid
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: basic-wid
+
+# namespace for troubleshooting
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: basic-troubleshooting
+
+
+# namespace for monitoring
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: basic-monitoring
+
+# namespace for kuberay
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: basic-kuberay
+
+# namespace for kured
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: basic-kured
+
+# namespace for public ingress
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: basic-public-ic

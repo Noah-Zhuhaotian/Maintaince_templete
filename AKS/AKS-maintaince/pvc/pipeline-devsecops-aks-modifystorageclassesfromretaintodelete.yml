@@ -1,0 +1,75 @@
+trigger:
+  - none
+
+
+parameters:
+  - name: EnvName
+    displayName: EnvName
+    type: string
+    default: xxxx01
+    values:
+    - xxxx01
+    - xxxx02
+    - xxxx03
+
+  - name: StorageClassName
+    displayName: StorageClassName
+    type: string
+    default: 'azurefile'
+
+variables:
+- group: AKS-vargroup
+- template: ../vars/var-${{ parameters.EnvName }}.yml
+
+pool:
+  name: WindowsDevOps
+
+stages:
+#######################################################################################
+#                              Deploy to xxxx01 or xxxx02                              #
+#######################################################################################
+  - ${{ if or(eq(parameters.EnvName, 'xxxx01'), eq(parameters.EnvName, 'xxxx02')) }}:
+    - stage: Modify_AKS_${{ parameters.EnvName }}_Storage_Classes_reclaim_policy
+      jobs:
+        - job: Getscyaml
+          displayName: 'Get sc yaml'
+          steps:
+            - task: Kubernetes@1
+              displayName: 'Get sc yaml'
+              name: Getscyaml
+              inputs:
+                connectionType: Kubernetes Service Connection
+                kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+                command: get
+                arguments: sc ${{ parameters.StorageClassName }}
+                outputFormat: yaml
+
+            - task: PowerShell@2
+              displayName: 'Set pvc in AKS'
+              name: SetpvcinAKS
+              inputs:
+                targetType: 'inline'
+                script: |
+                  [string]$a1='$(Getscyaml.KubectlOutput)' -replace "reclaimPolicy: Retain","reclaimPolicy: Delete"
+                  echo $a1
+                  write-output $a1 | out-file -filepath $(System.DefaultWorkingDirectory)/pvc/sc.yaml -Force
+
+            - task: Kubernetes@1
+              displayName: 'Delete SC'
+              name: DeleteSC
+              inputs:
+                connectionType: Kubernetes Service Connection
+                kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+                command: delete
+                arguments: sc ${{ parameters.StorageClassName }}
+                outputFormat: none
+
+            - task: Kubernetes@1
+              displayName: 'Create new SC'
+              name: CreatenewSC
+              inputs:
+                connectionType: Kubernetes Service Connection
+                kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+                command: apply
+                arguments: -f $(System.DefaultWorkingDirectory)/pvc/sc.yaml
+                outputFormat: none

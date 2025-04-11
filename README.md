@@ -7,4 +7,4 @@
 
 2. You can import the templetes of [GrafanaTemplete](GrafanaTemplete) into your Grafana, the folder contians two files, one is for cluster another is for namespace.
 
-3. You can upload the templetes of [AKS-maintanince](AKS-maintaince) into your Azure DevOps Repo, the templetes can assist to do some daily mantaince jobs for Kubernetes or AKS.
+3. You can upload the templetes of [AKS](AKS) into your Azure DevOps Repo, the templetes can assist to do some daily mantaince jobs for Kubernetes or AKS.

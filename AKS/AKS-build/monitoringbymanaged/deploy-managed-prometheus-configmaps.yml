@@ -1,0 +1,27 @@
+jobs:
+- job: Apply_managed_prometheus_configmaps
+  displayName: Apply managed prometheus configmaps
+  steps:
+  - task: Kubernetes@1
+    displayName: Apply settings configmap
+    inputs:
+      connectionType: Kubernetes Service Connection
+      kubernetesServiceEndpoint: ${{ parameters.serviceEndpointName }}
+      command: apply
+      arguments: -f ./AKS/monitoringbymanaged/ama-metrics-settings-configmap.yaml
+
+  - task: Kubernetes@1
+    displayName: Apply prometheus configmap
+    inputs:
+      connectionType: Kubernetes Service Connection
+      kubernetesServiceEndpoint: ${{ parameters.serviceEndpointName }}
+      command: apply
+      arguments: -f ./AKS/monitoringbymanaged/ama-metrics-prometheus-config-configmap.yaml
+
+  - task: Kubernetes@1
+    displayName: Apply prometheus configmap
+    inputs:
+      connectionType: Kubernetes Service Connection
+      kubernetesServiceEndpoint: ${{ parameters.serviceEndpointName }}
+      command: apply
+      arguments: -f ./AKS/monitoringbymanaged/ama-metrics-prometheus-config-node-configmap.yaml

@@ -1,0 +1,88 @@
+kind: ConfigMap
+apiVersion: v1
+data:
+  prometheus-config: |-
+    global:
+      scrape_interval: 15s
+    scrape_configs:
+      - job_name: kubelet
+        honor_timestamps: true
+        scrape_interval: 30s
+        scrape_timeout: 10s
+        metrics_path: /metrics
+        scheme: https
+        label_limit: 63
+        label_name_length_limit: 511
+        label_value_length_limit: 1023
+        authorization:
+          type: Bearer
+          credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          insecure_skip_verify: true
+        follow_redirects: true
+        enable_http2: true
+        relabel_configs:
+        - source_labels: [__metrics_path__]
+          separator: ;
+          regex: (.*)
+          target_label: metrics_path
+          replacement: $1
+          action: replace
+        - source_labels: [__address__]
+          separator: ;
+          regex: (.*)
+          target_label: node
+          replacement: '$NODE_NAME'
+          action: replace
+        - source_labels: [__address__]
+          separator: ;
+          regex: (.*)
+          target_label: kubernetes_io_os
+          replacement: linux
+          action: replace
+        metric_relabel_configs:
+        - source_labels: [__name__]
+          separator: ;
+          regex: .*|kubelet_volume_stats_capacity_bytes|kubelet_volume_stats_used_bytes|kubelet_node_name|kubelet_running_pods|kubelet_running_pod_count|kubelet_running_sum_containers|kubelet_running_containers|kubelet_running_container_count|volume_manager_total_volumes|kubelet_node_config_error|kubelet_runtime_operations_total|kubelet_runtime_operations_errors_total|kubelet_runtime_operations_duration_seconds_bucket|kubelet_runtime_operations_duration_seconds_sum|kubelet_runtime_operations_duration_seconds_count|kubelet_pod_start_duration_seconds_bucket|kubelet_pod_start_duration_seconds_sum|kubelet_pod_start_duration_seconds_count|kubelet_pod_worker_duration_seconds_bucket|kubelet_pod_worker_duration_seconds_sum|kubelet_pod_worker_duration_seconds_count|storage_operation_duration_seconds_bucket|storage_operation_duration_seconds_sum|storage_operation_duration_seconds_count|storage_operation_errors_total|kubelet_cgroup_manager_duration_seconds_bucket|kubelet_cgroup_manager_duration_seconds_sum|kubelet_cgroup_manager_duration_seconds_count|kubelet_pleg_relist_interval_seconds_bucket|kubelet_pleg_relist_interval_seconds_count|kubelet_pleg_relist_interval_seconds_sum|kubelet_pleg_relist_duration_seconds_bucket|kubelet_pleg_relist_duration_seconds_count|kubelet_pleg_relist_duration_seconds_sum|rest_client_requests_total|rest_client_request_duration_seconds_bucket|rest_client_request_duration_seconds_sum|rest_client_request_duration_seconds_count|process_resident_memory_bytes|process_cpu_seconds_total|go_goroutines|kubernetes_build_info|kubelet_certificate_manager_client_ttl_seconds|kubelet_certificate_manager_client_expiration_renew_errors|kubelet_server_expiration_renew_errors|kubelet_certificate_manager_server_ttl_seconds|kubelet_volume_stats_available_bytes|kubelet_volume_stats_capacity_bytes|kubelet_volume_stats_inodes_free|kubelet_volume_stats_inodes_used|kubelet_volume_stats_inodes|kube_persistentvolumeclaim_access_mode|kube_persistentvolumeclaim_labels|kube_persistentvolume_status_phase
+          replacement: $1
+          action: keep
+        static_configs:
+        - targets: ['$NODE_IP:10250']
+
+      - job_name: node
+        honor_timestamps: true
+        scrape_interval: 30s
+        scrape_timeout: 10s
+        metrics_path: /metrics
+        scheme: http
+        label_limit: 63
+        label_name_length_limit: 511
+        label_value_length_limit: 1023
+        follow_redirects: true
+        enable_http2: true
+        relabel_configs:
+        - source_labels: [__metrics_path__]
+          separator: ;
+          regex: (.*)
+          target_label: metrics_path
+          replacement: $1
+          action: replace
+        - source_labels: [__address__]
+          separator: ;
+          regex: (.*)
+          target_label: node
+          replacement: '$NODE_NAME'
+          action: replace
+        metric_relabel_configs:
+        - source_labels: [__name__]
+          separator: ;
+          regex: .*|node_filesystem_readonly|node_memory_MemTotal_bytes|node_cpu_seconds_total|node_memory_MemAvailable_bytes|node_memory_Buffers_bytes|node_memory_Cached_bytes|node_memory_MemFree_bytes|node_memory_Slab_bytes|node_filesystem_avail_bytes|node_filesystem_size_bytes|node_time_seconds|node_exporter_build_info|node_load1|node_vmstat_pgmajfault|node_network_receive_bytes_total|node_network_transmit_bytes_total|node_network_receive_drop_total|node_network_transmit_drop_total|node_disk_io_time_seconds_total|node_disk_io_time_weighted_seconds_total|node_load5|node_load15|node_disk_read_bytes_total|node_disk_written_bytes_total|node_uname_info|kubernetes_build_info
+          replacement: $1
+          action: keep
+        static_configs:
+        - targets: ['$NODE_IP:19100']     
+
+metadata:
+  name: ama-metrics-prometheus-config-node
+  namespace: kube-system

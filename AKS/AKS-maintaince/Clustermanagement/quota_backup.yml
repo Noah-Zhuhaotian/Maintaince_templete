@@ -1,0 +1,124 @@
+schedules:
+- cron: "30 6 * * 0"
+  displayName: 'Run every week'
+  branches:
+    include: 
+    - main
+  always: true
+
+trigger:
+  - none
+
+parameters:
+  - name: xxxx01   # Replace with your AKS environment name
+    displayName: xxxx01  # Replace with your AKS environment name
+    type: boolean
+    default: false
+  
+  - name: xxxx02  # Replace with your AKS environment name
+    displayName: xxxx02  # Replace with your AKS environment name
+    type: boolean
+    default: true
+  
+  - name: xxxx03  # Replace with your AKS environment name
+    displayName: xxxx03  # Replace with your AKS environment name
+    type: boolean
+    default: true
+
+variables:
+- group: AKS-vargroup
+
+pool:
+  name: WindowsDevOps
+
+# Replace "xxxx" with your each AKS environment name
+stages: 
+  - ${{ if eq(parameters.xxxx, true) }}:
+    - stage: ${{ format('Back_Up_Quota_{0}', 'xxxx01') }}
+      variables: 
+        - template: ${{ format('../vars/var-{0}.yml', 'xxxx01') }}
+      jobs:
+        - job: BackUpQuota
+          displayName: Backup Quota
+          steps:
+          - task: Kubernetes@1
+            displayName: Get Quota
+            name: GetQuota
+            inputs:
+              connectionType: Kubernetes Service Connection
+              kubernetesServiceEndpoint: ${{ variables.backupEndpointName }}
+              command: get
+              arguments: resourcequota -A
+              outputFormat: jsonpath='{range .items[*]}{.metadata.name}{" "}{.metadata.namespace}{"\n"}{end}'
+
+          - task: PowerShell@2
+            displayName: 'Wirte Result to Yaml'
+            name: WritQuotaYaml
+            inputs:
+              targetType: 'inline'
+              script: |
+                $a11=$(GetQuota.KubectlOutput)
+                write-output $a11 | out-file -filepath $(System.DefaultWorkingDirectory)/Clustermanagement/quota_backup.yaml -Force
+                
+          - publish: $(System.DefaultWorkingDirectory)/Clustermanagement/quota_backup.yaml
+            artifact: ${{ format('quotaArtifact_{0}', 'xxxx') }}
+
+  - ${{ if eq(parameters.xxxx02, true) }}:
+    - stage: ${{ format('Back_Up_Quota_{0}', 'xxxx02') }}
+      variables: 
+        - template: ${{ format('../vars/var-{0}.yml', 'xxxx02') }}
+      jobs:
+        - job: BackUpQuota
+          displayName: Backup Quota
+          steps:
+          - task: Kubernetes@1
+            displayName: Get Quota
+            name: GetQuota
+            inputs:
+              connectionType: Kubernetes Service Connection
+              kubernetesServiceEndpoint: ${{ variables.backupEndpointName }}
+              command: get
+              arguments: resourcequota -A
+              outputFormat: jsonpath='{range .items[*]}{.metadata.name}{" "}{.metadata.namespace}{"\n"}{end}'
+
+          - task: PowerShell@2
+            displayName: 'Wirte Result to Yaml'
+            name: WritQuotaYaml
+            inputs:
+              targetType: 'inline'
+              script: |
+                $a11=$(GetQuota.KubectlOutput)
+                write-output $a11 | out-file -filepath $(System.DefaultWorkingDirectory)/Clustermanagement/quota_backup.yaml -Force
+                
+          - publish: $(System.DefaultWorkingDirectory)/Clustermanagement/quota_backup.yaml
+            artifact: ${{ format('quotaArtifact_{0}', 'xxxx') }}
+
+  - ${{ if eq(parameters.xxxx03, true) }}:
+    - stage: ${{ format('Back_Up_Quota_{0}', 'xxxx03') }}
+      variables: 
+        - template: ${{ format('../vars/var-{0}.yml', 'xxxx03') }}
+      jobs:
+        - job: BackUpQuota
+          displayName: Backup Quota
+          steps:
+          - task: Kubernetes@1
+            displayName: Get Quota
+            name: GetQuota
+            inputs:
+              connectionType: Kubernetes Service Connection
+              kubernetesServiceEndpoint: ${{ variables.backupEndpointName }}
+              command: get
+              arguments: resourcequota -A
+              outputFormat: jsonpath='{range .items[*]}{.metadata.name}{" "}{.metadata.namespace}{"\n"}{end}'
+
+          - task: PowerShell@2
+            displayName: 'Wirte Result to Yaml'
+            name: WritQuotaYaml
+            inputs:
+              targetType: 'inline'
+              script: |
+                $a11=$(GetQuota.KubectlOutput)
+                write-output $a11 | out-file -filepath $(System.DefaultWorkingDirectory)/Clustermanagement/quota_backup.yaml -Force
+                
+          - publish: $(System.DefaultWorkingDirectory)/Clustermanagement/quota_backup.yaml
+            artifact: ${{ format('quotaArtifact_{0}', 'xxxx') }}

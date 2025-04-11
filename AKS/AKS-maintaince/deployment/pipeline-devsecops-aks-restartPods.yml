@@ -1,0 +1,171 @@
+trigger:
+  - none
+
+pool:
+  name: WindowsDevOps
+
+# Replace "xxxx" with your each AKS environment name
+# Replace "xxxxxxxxx-dev" with your namespace of your applincation on AKS cluster
+
+
+parameters:
+  - name: EnvName
+    displayName: EnvName
+    type: string
+    default: xxxx01
+    values:
+    - xxxx01
+    - xxxx02
+    - xxxx03
+
+  - name: namespace
+    displayName: namespace
+    type: string
+    default: 'xxxxxxxxx-dev'
+
+  - name: podname
+    displayName: podname
+    type: string
+    default: 'ingress-nginx-controller-5cd7bd89cc-cl5vq'
+
+
+variables:
+- group: AKS-vargroup
+- template: ../vars/var-${{ parameters.EnvName }}.yml
+
+stages:
+  - stage: restartResources
+    jobs:
+      - job: GetResourcesnames
+        displayName: Get Resources names
+        steps:
+        - task: Kubernetes@1
+          displayName: Get type of resources
+          name: Gettypeofresources
+          inputs:
+            connectionType: Kubernetes Service Connection
+            kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+            command: get
+            arguments: pod ${{ parameters.podname }}
+            namespace: ${{ parameters.namespace }}
+            outputFormat: jsonpath='{.metadata.ownerReferences[].kind}'
+
+        - task: Kubernetes@1
+          displayName: Pervious level resources
+          name: Perviouslevelresources
+          inputs:
+            connectionType: Kubernetes Service Connection
+            kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+            command: get
+            arguments: pod ${{ parameters.podname }}
+            namespace: ${{ parameters.namespace }}
+            outputFormat: jsonpath='{.metadata.ownerReferences[].name}'
+
+        - task: PowerShell@2
+          displayName: 'Set kind and resource'
+          name: Setkindandresource
+          inputs:
+            targetType: 'inline'
+            script: |
+              $clearstring1=$(Gettypeofresources.KubectlOutput).Trim(",").replace(","," ").replace("  "," ").Trim()
+              $clearstring2=$(Perviouslevelresources.KubectlOutput).Trim(",").replace(","," ").replace("  "," ").Trim()
+              Write-Host "##vso[task.setvariable variable=kind;isOutput=true]$clearstring1"
+              Write-Host "##vso[task.setvariable variable=resourcename;isOutput=true]$clearstring2"
+
+      - job: RestartDeployment
+        displayName: Restart Deployment
+        dependsOn: GetResourcesnames
+        condition: eq(dependencies.GetResourcesnames.outputs['Setkindandresource.kind'],'ReplicaSet')
+        variables:
+          ReplicaSetname:  $[ dependencies.GetResourcesnames.outputs['Setkindandresource.resourcename'] ] 
+        steps:
+          - task: Kubernetes@1
+            displayName: Get delopment name
+            name: Getdelopmentname
+            inputs:
+              connectionType: Kubernetes Service Connection
+              kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+              command: get
+              arguments: ReplicaSet $(ReplicaSetname)
+              namespace: ${{ parameters.namespace }}
+              outputFormat: jsonpath='{.metadata.ownerReferences[].name}'
+
+          - task: PowerShell@2
+            displayName: 'Set deployment'
+            name: Setdeployment
+            inputs:
+              targetType: 'inline'
+              script: |
+                $b1=$(Getdelopmentname.KubectlOutput).Trim(",").replace(","," ").replace("  "," ").Trim()
+                Write-Host "##vso[task.setvariable variable=deploymentname;isOutput=true]$b1"
+
+          - task: Kubernetes@1
+            displayName: Restart Deployment
+            inputs:
+              connectionType: Kubernetes Service Connection
+              kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+              namespace: ${{ parameters.namespace }}
+              command: rollout
+              arguments: restart deployment/$(Setdeployment.deploymentname)
+        
+      - job: RestartStatefulSets
+        displayName: Restart StatefulSets
+        dependsOn: 
+          - GetResourcesnames
+          - RestartDeployment
+        condition: and(eq(dependencies.GetResourcesnames.outputs['Setkindandresource.kind'],'StatefulSet'),not(failed()), not(canceled()))
+        variables:
+          StatefulSetname:  $[ dependencies.GetResourcesnames.outputs['Setkindandresource.resourcename'] ]
+        steps:
+          - task: Kubernetes@1
+            displayName: Get StatefulSet replicas
+            name: GetStatefulSetreplicas
+            inputs:
+              connectionType: Kubernetes Service Connection
+              kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+              command: get
+              arguments: StatefulSet $(StatefulSetname)
+              namespace: ${{ parameters.namespace }}
+              outputFormat: jsonpath='{.spec.replicas}'
+
+          - task: PowerShell@2
+            displayName: 'Set StatefulSet replicas'
+            name: SetStatefulSetreplicas
+            inputs:
+              targetType: 'inline'
+              script: |
+                $c=$(GetStatefulSetreplicas.KubectlOutput).Trim(",").replace(","," ").replace("  "," ").Trim()
+                Write-Host "##vso[task.setvariable variable=StatefulSetreplicas;isOutput=true]$c"
+
+          - task: Kubernetes@1
+            displayName: Restart StatefulSet
+            inputs:
+              connectionType: Kubernetes Service Connection
+              kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+              namespace: ${{ parameters.namespace }}
+              command: rollout
+              arguments: restart StatefulSet/$(SetStatefulSetreplicas.StatefulSetreplicas)
+
+      - job: Restartdeamonset
+        displayName: Restart deamonset
+        dependsOn: 
+          - GetResourcesnames
+          - RestartDeployment
+          - RestartStatefulSets
+        condition: and(eq(dependencies.GetResourcesnames.outputs['Setkindandresource.kind'],'DaemonSet'),not(failed()), not(canceled()))
+        variables:
+          daemonsetname:  $[ dependencies.GetResourcesnames.outputs['Setkindandresource.resourcename'] ]
+        steps:
+          - task: Kubernetes@1
+            displayName: Restart DeamonSet
+            name: RestartDeamonSet
+            inputs:
+              connectionType: Kubernetes Service Connection
+              kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+              command: rollout
+              arguments: restart daemonset $(daemonsetname)
+              namespace: ${{ parameters.namespace }}
+              outputFormat: none
+
+      
+      

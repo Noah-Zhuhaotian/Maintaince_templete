@@ -1,0 +1,11 @@
+jobs:
+- job: Apply_azure_monitoring_configmap
+  displayName: Apply azure monitoring configmap
+  steps:
+  - task: Kubernetes@1
+    displayName: Apply azure monitoring configmap
+    inputs:
+      connectionType: Kubernetes Service Connection
+      kubernetesServiceEndpoint: ${{ parameters.serviceEndpointName }}
+      command: apply
+      arguments: -f ./AKS/azureMonitoring/container-azm-ms-agentconfig.yaml

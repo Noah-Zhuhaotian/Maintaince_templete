@@ -1,0 +1,40 @@
+jobs:
+- job: deploy_kured
+  displayName: Deploy kured
+  steps:
+  - task: HelmDeploy@0
+    displayName: helm repo add kured
+    inputs:
+      connectionType: Kubernetes Service Connection
+      kubernetesServiceEndpoint: ${{ parameters.serviceEndpointName }}
+      namespace: basic-kured
+      command: repo
+      arguments: add kubereboot https://kubereboot.github.io/charts/
+  - task: HelmDeploy@0
+    displayName: helm repo update
+    inputs:
+      connectionType: Kubernetes Service Connection
+      kubernetesServiceEndpoint: ${{ parameters.serviceEndpointName }}
+      namespace: basic-kured
+      command: repo
+      arguments: update
+  - task: HelmDeploy@0
+    displayName: helm repo list
+    inputs:
+      connectionType: Kubernetes Service Connection
+      kubernetesServiceEndpoint: ${{ parameters.serviceEndpointName }}
+      namespace: basic-kured
+      command: repo
+      arguments: list
+  - task: HelmDeploy@0
+    displayName: helm install kured
+    inputs:
+      connectionType: Kubernetes Service Connection
+      kubernetesServiceEndpoint: ${{ parameters.serviceEndpointName }}
+      namespace: basic-kured
+      command: upgrade
+      install: true
+      chartName: kubereboot/kured
+      releaseName: $(releaseName)
+      valueFile: AKS/kured/$(valuepath)
+      arguments: --version $(kuredversion) --debug

@@ -1,0 +1,23 @@
+variables:
+  - name: serviceEndpointName
+    value: "xxxxxxxx" # Replace with your admin service connection of your AKS cluster in Azure DevOps
+  - name: IngressControllerIP
+    value: "xx.xx.xx.xx"  # Replace with your ingress controller IP address you set up with Azure CNI
+  - name: releaseName
+    value: "xxxxxxx"  # Replace with your release name in Azure DevOps
+  - name: servicePrincipleName
+    value: "xxxxxxxxx"  # Replace with your service connection name in Azure DevOps for communicating with your resource in AKS  
+  - name: Ingresspublicrelease
+    value: "public-ingress"  # Replace with ingress release name in AKS
+  - name: publicIngressControllerIP
+    value: "xx.xx.xx.xx"  # Replace with ingress controller ip in AKS
+  - name: clustername
+    value: "xxxxxx" # Replace with your AKS cluster name
+  - name: resourcegroup
+    value: "xxxxxxxx" # Replace with your AKS resource group name
+  - name: Ingress-replicaCount
+    value: "4"
+  - name: workspaceName
+    value: "xxxxxxx"  # Replace with your monitoring resource group name
+  - name: amwLocation  
+    value: "eastus" # Replace with your moinitoring resource group location 

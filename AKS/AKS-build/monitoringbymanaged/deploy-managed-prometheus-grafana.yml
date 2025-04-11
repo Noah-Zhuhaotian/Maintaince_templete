@@ -1,0 +1,35 @@
+jobs:
+- job: Apply_managed_prometheus_configmaps
+  displayName: Apply managed prometheus configmaps
+  steps:
+  - task: AzureCLI@2
+    displayName: 'Create Workspace'
+    name: CreateWorkspace
+    inputs:
+      azureSubscription: ${{ parameters.servicePrincipleName }}
+      scriptType: ps
+      scriptLocation: inlineScript
+      inlineScript: |
+        az resource create --resource-group $(resourcegroup) --namespace microsoft.monitor --resource-type accounts --name $(workspaceName) --location $(amwLocation) --properties "{}"
+  
+  - task: AzureCLI@2
+    displayName: 'Create Grafana'
+    name: CreateGrafana
+    inputs:
+      azureSubscription: ${{ parameters.servicePrincipleName }}
+      scriptType: ps
+      scriptLocation: inlineScript
+      inlineScript: |
+        az grafana create --name $(grafanaName) --resource-group $(resourcegroup) --location $(amwLocation)
+
+  - task: AzureCLI@2
+    displayName: 'Link Grafana Prometheus'
+    name: LinkGrafanaPrometheus
+    inputs:
+      azureSubscription: ${{ parameters.servicePrincipleName }}
+      scriptType: ps
+      scriptLocation: inlineScript
+      inlineScript: |
+        $workspaceid = $(az resource list --resource-group $(resourcegroup) --query "[?name=='$(workspaceName)'].[id]" -o tsv)
+        $grafanaid = $(az resource list --resource-group $(resourcegroup) --query "[?name=='$(grafanaName)'].[id]" -o tsv)
+        az aks update --enable-azure-monitor-metrics -n $(clustername) -g $(resourcegroup) --azure-monitor-workspace-resource-id "$workspaceid" --grafana-resource-id "$grafanaid"

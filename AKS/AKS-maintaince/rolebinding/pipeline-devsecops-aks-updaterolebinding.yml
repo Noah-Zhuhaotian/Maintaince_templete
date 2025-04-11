@@ -1,0 +1,161 @@
+trigger:
+  - none
+
+# Replace "xxxx" with your each AKS environment name
+# Replace "xxxxxxxxx-dev" with your namespace of your applincation on AKS cluster
+
+
+parameters:
+  - name: EnvName
+    displayName: EnvName
+    type: string
+    default: xxxx01
+    values:
+    - xxxx01
+    - xxxx02
+    - xxxx03
+
+  - name: namespace
+    displayName: namespace
+    type: string
+    default: 'xxxxxxxxx-dev'
+    
+variables:
+- group: AKS-vargroup
+- template: ../vars/var-${{ parameters.EnvName }}.yml
+
+
+pool:
+  name: WindowsDevOps
+
+stages:
+  - stage: ChangeRolebinding
+    jobs:
+      - job: ValidateRoleBinding
+        displayName: Validate RoleBinding
+        steps:
+        - task: Kubernetes@1
+          displayName: Validate RoleBinding
+          name: ValidateRoleBinding
+          inputs:
+            connectionType: Kubernetes Service Connection
+            kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+            namespace: ${{ parameters.namespace }}
+            command: get
+            arguments: rolebinding
+            outputFormat: jsonpath='{.items[*].metadata.name}'
+        
+        - task: PowerShell@2
+          displayName: 'Set variable'
+          name: setvariable
+          inputs:
+            targetType: 'inline'
+            script: |
+              Write-Host "##vso[task.setvariable variable=namespaceuserrolebinding;isOutput=true]$(ValidateRoleBinding.KubectlOutput)"
+
+      - job: DeleteUserEditRolebinding
+        displayName: Delete User Edit Rolebinding
+        dependsOn: ValidateRoleBinding
+        condition: contains(dependencies.ValidateRoleBinding.outputs['setvariable.namespaceuserrolebinding'], 'namespace-user-edit-rolebinding')
+        steps:
+        - task: Kubernetes@1
+          displayName: Delete User Rolebinding
+          inputs:
+            connectionType: Kubernetes Service Connection
+            kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+            namespace: ${{ parameters.namespace }}
+            command: delete
+            arguments: rolebinding namespace-user-edit-rolebinding
+        
+      - job: DeleteUserViewRolebinding
+        displayName: Delete User View Rolebinding
+        dependsOn: ValidateRoleBinding
+        condition: contains(dependencies.ValidateRoleBinding.outputs['setvariable.namespaceuserrolebinding'], 'namespace-user-view-rolebinding')
+        steps:
+        - task: Kubernetes@1
+          displayName: Delete User View Rolebinding
+          inputs:
+            connectionType: Kubernetes Service Connection
+            kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+            namespace: ${{ parameters.namespace }}
+            command: delete
+            arguments: rolebinding namespace-user-view-rolebinding
+         
+      - job: DeployUserEditRolebinding
+        displayName: Deploy User Edit Rolebinding
+        dependsOn: DeleteUserEditRolebinding
+        condition: or(eq(variables.env, 'dev'), eq(variables.env, 'kubeturbo'), eq(variables.env, 'sb'))
+        steps:
+        - task: Kubernetes@1
+          displayName: Deploy User Edit Rolebinding
+          inputs:
+            connectionType: Kubernetes Service Connection
+            kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+            command: apply
+            useConfigurationFile: true
+            configurationType: inline
+            inline: |
+              apiVersion: rbac.authorization.k8s.io/v1
+              kind: Role
+              metadata:
+                name: namespace-user-edit
+                namespace: ${{ parameters.namespace }}
+              rules:
+              - apiGroups: ["*"]
+                resources: [$(roles)]
+                verbs: ["*"]
+              ---
+              apiVersion: rbac.authorization.k8s.io/v1
+              kind: RoleBinding
+              metadata:
+                name: namespace-user-edit-rolebinding
+                namespace: ${{ parameters.namespace }}
+              roleRef:
+                apiGroup: rbac.authorization.k8s.io
+                kind: Role
+                name: namespace-user-edit
+              subjects:
+              - apiGroup: rbac.authorization.k8s.io
+                kind: Group
+                name: $(GroupID)
+                namespace: ${{ parameters.namespace }}
+
+      - job: DeployUserViewRolebinding
+        displayName: Deploy User View Rolebinding
+        dependsOn: DeployUserEditRolebinding
+        condition: and( not(failed()), not(canceled()))
+        steps:    
+        - task: Kubernetes@1
+          displayName: Deploy User View Rolebinding
+          inputs:
+            connectionType: Kubernetes Service Connection
+            kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+            command: apply
+            useConfigurationFile: true
+            configurationType: inline
+            inline: |
+              apiVersion: rbac.authorization.k8s.io/v1
+              kind: Role
+              metadata:
+                name: namespace-user-view
+                namespace: ${{ parameters.namespace }}
+              rules:
+              - apiGroups: ["*"]
+                resources: ["*"]
+                verbs: ["get", "list", "view"]
+              ---
+              apiVersion: rbac.authorization.k8s.io/v1
+              kind: RoleBinding
+              metadata:
+                name: namespace-user-view-rolebinding
+                namespace: ${{ parameters.namespace }}
+              roleRef:
+                apiGroup: rbac.authorization.k8s.io
+                kind: Role
+                name: namespace-user-view
+              subjects:
+              - apiGroup: rbac.authorization.k8s.io
+                kind: Group
+                name: $(GroupID)
+                namespace: ${{ parameters.namespace }}
+      

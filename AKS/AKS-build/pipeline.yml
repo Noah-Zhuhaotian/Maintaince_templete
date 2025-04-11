@@ -1,0 +1,126 @@
+trigger:
+  - none
+
+
+pool:
+  name: WindowsDevOps
+
+parameters:
+- name: EnvName
+  displayName: EnvName
+  type: string
+  default: xxxx01
+  values:
+  - xxxx01
+  - xxxx02
+  - xxxx03
+
+- name: deployList
+  displayName: Choose the deployment
+  type: string
+  default: namespace
+  values:
+  - namespace
+  - serviceaccount
+  - intranet_IngressController
+  - public_IngressController
+  - public_certRenew
+  - WID
+  - keda
+  - ImageCleaner
+  - kured
+  - Managed_Prometheus_Grafana
+  - managed_prometheus_configMaps
+  - azure_monitoring_configMaps
+
+variables:
+  - template: vars/var-${{ parameters.EnvName }}.yml
+  - group: AKS-vargroup
+
+stages:
+  - ${{ if eq(parameters.deployList, 'namespace') }}:
+    - stage: Deploy_${{ parameters.EnvName }}_Namespace
+      jobs:
+        - template: namespace/deploy.yml
+          parameters:
+            serviceEndpointName: ${{ variables.serviceEndpointName }}
+            releaseName: ${{ variables.releaseName }}
+
+  - ${{ if eq(parameters.deployList, 'serviceaccount') }}:
+    - stage: Deploy_${{ parameters.EnvName }}_serviceaccount
+      jobs:
+        - template: serviceaccount/deploy.yml
+          parameters:
+            serviceEndpointName: ${{ variables.serviceEndpointName }}
+
+  - ${{ if eq(parameters.deployList, 'intranet_IngressController') }}:
+    - stage: Deploy_${{ parameters.EnvName }}_intranet_IngressController
+      jobs:
+        - template: ingresscontroller/intranet/deploy.yml
+          parameters:
+            serviceEndpointName: ${{ variables.serviceEndpointName }}
+            releaseName: ${{ variables.Ingressrelease }}
+
+  - ${{ if eq(parameters.deployList, 'public_IngressController') }}:
+    - stage: Deploy_${{ parameters.EnvName }}_public_IngressController
+      jobs:
+        - template: ingresscontroller/public/deploy.yml
+          parameters:
+            serviceEndpointName: ${{ variables.serviceEndpointName }}
+            releaseName: ${{ variables.Ingresspublicrelease }}
+
+  - ${{ if eq(parameters.deployList, 'public_certRenew') }}:
+    - stage: Deploy_${{ parameters.EnvName }}_public_certRenew
+      jobs:
+        - template: ingresscontroller/public/update-cert.yml
+          parameters:
+            serviceEndpointName: ${{ variables.serviceEndpointName }}
+
+  - ${{ if eq(parameters.deployList, 'WID') }}:
+    - stage: Deploy_${{ parameters.EnvName }}_WID
+      jobs:
+        - template: workloadidentity-addon/deploy.yml
+          parameters:
+            servicePrincipleName: ${{ variables.servicePrincipleName }}
+
+  - ${{ if eq(parameters.deployList, 'keda') }}:
+    - stage: Enable_${{ parameters.EnvName }}_keda
+      jobs:
+        - template: keda/deploy.yml
+          parameters:
+            servicePrincipleName: ${{ variables.servicePrincipleName }}
+
+  - ${{ if eq(parameters.deployList, 'ImageCleaner') }}:
+    - stage: Enable_${{ parameters.EnvName }}_ImageCleaner
+      jobs:
+        - template: image-cleaner/deploy.yml
+          parameters:
+            servicePrincipleName: ${{ variables.servicePrincipleName }}
+
+  - ${{ if eq(parameters.deployList, 'kured') }}:
+    - stage: Deloy_${{ parameters.EnvName }}_kured
+      jobs:
+        - template: kured/deploy.yml
+          parameters:
+            serviceEndpointName: ${{ variables.serviceEndpointName }}
+
+  - ${{ if eq(parameters.deployList, 'managed_prometheus_configMaps') }}:
+    - stage: Apply_${{ parameters.EnvName }}_managed_prometheus_configmap
+      jobs:
+        - template: monitoringbymanaged/deploy-managed-prometheus-configmaps.yml
+          parameters:
+            serviceEndpointName: ${{ variables.serviceEndpointName }}
+
+  - ${{ if eq(parameters.deployList, 'Managed_Prometheus_Grafana') }}:
+    - stage: Apply_${{ parameters.EnvName }}_managed_prometheus_configmap
+      jobs:
+        - template: monitoringbymanaged/deploy-managed-prometheus-grafana.yml
+          parameters:
+            servicePrincipleName: ${{ variables.servicePrincipleName }}
+
+  - ${{ if eq(parameters.deployList, 'azure_monitoring_configMaps') }}:
+    - stage: Apply_${{ parameters.EnvName }}_azure_monitoring_configmap
+      jobs:
+        - template: azureMonitoring/deploy.yml
+          parameters:
+            serviceEndpointName: ${{ variables.serviceEndpointName }}

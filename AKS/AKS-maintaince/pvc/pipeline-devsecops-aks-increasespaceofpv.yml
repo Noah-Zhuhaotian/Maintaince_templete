@@ -1,0 +1,308 @@
+trigger:
+  - none
+
+# Replace "xxxx" with your each AKS environment name
+# Replace "xxxxxxxxx-dev" with your namespace of your applincation on AKS cluster
+
+parameters:
+  - name: EnvName
+    displayName: EnvName
+    type: string
+    default: xxxx01
+    values:
+    - xxxx01
+    - xxxx02
+    - xxxx03
+
+  - name: namespace
+    displayName: namespace
+    type: string
+    default: 'xxxxxxxxx-dev'
+
+  - name: PVCName
+    displayName: PVCName
+    type: string
+    default: 'msalproxyazurefilepvclaim'
+
+  - name: numberGi
+    displayName: numberGi
+    type: string
+    default: '2'
+
+
+variables:
+- group: AKS-vargroup
+- template: ../vars/var-${{ parameters.EnvName }}.yml
+
+pool:
+  name: WindowsDevOps
+
+  
+stages: 
+  - stage: Increase_AKS_${{ parameters.EnvName }}_pvc
+    jobs:
+      - job: GetResourcesnames
+        displayName: Get Resources names
+        steps:
+          - task: Kubernetes@1
+            displayName: "Get PVC"
+            name: GetPVC
+            inputs:
+              connectionType: Kubernetes Service Connection
+              kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+              command: describe
+              arguments: pvc ${{ parameters.PVCName }}
+              namespace: ${{ parameters.namespace }}
+              outputFormat: none
+
+          - task: PowerShell@2
+            displayName: 'Get pod name'
+            name: Getpodname
+            inputs:
+              targetType: 'inline'
+              script: |
+                [string]$a1="$(GetPVC.KubectlOutput)"
+                $a1=$a1.Trim(",").replace(","," ").replace("  "," ").Trim()
+                $a2=@($a1 -split "`n")
+                $a3=$a2 -match "Used By"
+                $a4=$a3 -replace " ",""
+                $a5=$a4 -split ":"
+                $a6=$a5[1]
+                Write-Host "##vso[task.setvariable variable=podname;isOutput=true]$a6"
+      
+          - task: Kubernetes@1
+            displayName: Get type of resources
+            name: Gettypeofresources
+            inputs:
+              connectionType: Kubernetes Service Connection
+              kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+              command: get
+              arguments: pod $(Getpodname.podname)
+              namespace: ${{ parameters.namespace }}
+              outputFormat: jsonpath='{.metadata.ownerReferences[].kind}'
+
+          - task: Kubernetes@1
+            displayName: Pervious level resources
+            name: Perviouslevelresources
+            inputs:
+              connectionType: Kubernetes Service Connection
+              kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+              command: get
+              arguments: pod $(Getpodname.podname)
+              namespace: ${{ parameters.namespace }}
+              outputFormat: jsonpath='{.metadata.ownerReferences[].name}'
+          
+          - task: PowerShell@2
+            displayName: 'Set kind and resource'
+            name: Setkindandresource
+            inputs:
+              targetType: 'inline'
+              script: |
+                $clearstring1=$(Gettypeofresources.KubectlOutput).Trim(",").replace(","," ").replace("  "," ").Trim()
+                $clearstring2=$(Perviouslevelresources.KubectlOutput).Trim(",").replace(","," ").replace("  "," ").Trim()
+                Write-Host "##vso[task.setvariable variable=kind;isOutput=true]$clearstring1"
+                Write-Host "##vso[task.setvariable variable=resourcename;isOutput=true]$clearstring2"
+
+      - job: Increasedeploymentpvsize
+        displayName: Increase deployment pv size
+        dependsOn: GetResourcesnames
+        condition: eq(dependencies.GetResourcesnames.outputs['Setkindandresource.kind'],'ReplicaSet')
+        variables:
+          ReplicaSetname:  $[ dependencies.GetResourcesnames.outputs['Setkindandresource.resourcename'] ] 
+        steps:
+          - task: PowerShell@2
+            displayName: 'Set pv size'
+            name: Setpvsize
+            inputs:
+              targetType: 'inline'
+              script: |
+                $newsize="spec:"+"`n"+"  resources:"+"`n"+"    requests:"+"`n"+"      storage: ${{ parameters.numberGi }}Gi"
+                echo $newsize
+                write-output $newsize | out-file -filepath $(System.DefaultWorkingDirectory)/pvc/newsize.yaml -Force
+   
+          - task: Kubernetes@1
+            displayName: Get delopment name
+            name: Getdelopmentname
+            inputs:
+              connectionType: Kubernetes Service Connection
+              kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+              command: get
+              arguments: ReplicaSet $(ReplicaSetname)
+              namespace: ${{ parameters.namespace }}
+              outputFormat: jsonpath='{.metadata.ownerReferences[].name}'
+
+          - task: PowerShell@2
+            displayName: 'Set deployment'
+            name: Setdeployment
+            inputs:
+              targetType: 'inline'
+              script: |
+                $b1=$(Getdelopmentname.KubectlOutput).Trim(",").replace(","," ").replace("  "," ").Trim()
+                Write-Host "##vso[task.setvariable variable=deploymentname;isOutput=true]$b1"
+
+          - task: Kubernetes@1
+            displayName: Get replicas
+            name: Getreplicas
+            inputs:
+              connectionType: Kubernetes Service Connection
+              kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+              command: get
+              arguments: deployment $(Setdeployment.deploymentname)
+              namespace: ${{ parameters.namespace }}
+              outputFormat: jsonpath='{.spec.replicas}'
+
+          - task: PowerShell@2
+            displayName: 'Set deployment replicas'
+            name: Setdeploymentreplicas
+            inputs:
+              targetType: 'inline'
+              script: |
+                $b2=$(Getreplicas.KubectlOutput).Trim(",").replace(","," ").replace("  "," ").Trim()
+                Write-Host "##vso[task.setvariable variable=deploymentreplicas;isOutput=true]$b2"
+
+          - task: Kubernetes@1
+            displayName: Scale down deployment
+            name: Scaledowndeployment
+            inputs:
+              connectionType: Kubernetes Service Connection
+              kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+              command: scale
+              arguments: deployment $(Setdeployment.deploymentname) --replicas=0
+              namespace: ${{ parameters.namespace }}
+              outputFormat: none
+
+          - task: Kubernetes@1
+            displayName: Set new pvc size
+            name: Setnewpvcsize
+            inputs:
+              connectionType: Kubernetes Service Connection
+              kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+              command: patch
+              arguments: pvc ${{ parameters.PVCName }} --type merge --patch-file $(System.DefaultWorkingDirectory)/pvc/newsize.yaml
+              namespace: ${{ parameters.namespace }}
+              outputFormat: none
+          
+          - task: Kubernetes@1
+            displayName: Scale up deployment
+            name: Scaleupdeployment
+            inputs:
+              connectionType: Kubernetes Service Connection
+              kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+              command: scale
+              arguments: deployment $(Setdeployment.deploymentname) --replicas=$(Setdeploymentreplicas.deploymentreplicas)
+              namespace: ${{ parameters.namespace }}
+              outputFormat: none
+
+      - job: IncreaseStatefulSetspvsize
+        displayName: Increase StatefulSets pv size
+        dependsOn: 
+          - GetResourcesnames
+          - Increasedeploymentpvsize
+        condition: and(eq(dependencies.GetResourcesnames.outputs['Setkindandresource.kind'],'StatefulSet'),not(failed()), not(canceled()))
+        variables:
+          StatefulSetname:  $[ dependencies.GetResourcesnames.outputs['Setkindandresource.resourcename'] ]
+        steps:
+          - task: PowerShell@2
+            displayName: 'Set pv size'
+            name: Setpvsize
+            inputs:
+              targetType: 'inline'
+              script: |
+                $newsize="spec:"+"`n"+"  resources:"+"`n"+"    requests:"+"`n"+"      storage: ${{ parameters.numberGi }}Gi"
+                echo $newsize
+                write-output $newsize | out-file -filepath $(System.DefaultWorkingDirectory)/pvc/newsize.yaml -Force
+
+          - task: Kubernetes@1
+            displayName: Get StatefulSet replicas
+            name: GetStatefulSetreplicas
+            inputs:
+              connectionType: Kubernetes Service Connection
+              kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+              command: get
+              arguments: StatefulSet $(StatefulSetname)
+              namespace: ${{ parameters.namespace }}
+              outputFormat: jsonpath='{.spec.replicas}'
+
+          - task: PowerShell@2
+            displayName: 'Set StatefulSet replicas'
+            name: SetStatefulSetreplicas
+            inputs:
+              targetType: 'inline'
+              script: |
+                $c=$(GetStatefulSetreplicas.KubectlOutput).Trim(",").replace(","," ").replace("  "," ").Trim()
+                Write-Host "##vso[task.setvariable variable=StatefulSetreplicas;isOutput=true]$c"
+
+          - task: Kubernetes@1
+            displayName: Scale down StatefulSet
+            name: ScaledownStatefulSet
+            inputs:
+              connectionType: Kubernetes Service Connection
+              kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+              command: scale
+              arguments: statefulset $(StatefulSetname) --replicas=0
+              namespace: ${{ parameters.namespace }}
+              outputFormat: none
+
+          - task: Kubernetes@1
+            displayName: Set new pvc size
+            name: Setnewpvcsize
+            inputs:
+              connectionType: Kubernetes Service Connection
+              kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+              command: patch
+              arguments: pvc ${{ parameters.PVCName }} --type merge --patch-file $(System.DefaultWorkingDirectory)/pvc/newsize.yaml
+              namespace: ${{ parameters.namespace }}
+              outputFormat: none
+          
+          - task: Kubernetes@1
+            displayName: Scale up resources
+            name: ScaleupStatefulSet
+            inputs:
+              connectionType: Kubernetes Service Connection
+              kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+              command: scale
+              arguments: statefulset $(StatefulSetname) --replicas=$(SetStatefulSetreplicas.StatefulSetreplicas)
+              namespace: ${{ parameters.namespace }}
+              outputFormat: none
+
+      - job: Increasedeamonsetpvsize
+        displayName: Increase deamonset pv size
+        dependsOn: 
+          - GetResourcesnames
+          - Increasedeploymentpvsize
+          - IncreaseStatefulSetspvsize
+        condition: and(eq(dependencies.GetResourcesnames.outputs['Setkindandresource.kind'],'DaemonSet'),not(failed()), not(canceled()))
+        variables:
+          daemonsetname:  $[ dependencies.GetResourcesnames.outputs['Setkindandresource.resourcename'] ]
+        steps:
+          - task: PowerShell@2
+            displayName: 'Set pv size'
+            name: Setpvsize
+            inputs:
+              targetType: 'inline'
+              script: |
+                $newsize="spec:"+"`n"+"  resources:"+"`n"+"    requests:"+"`n"+"      storage: ${{ parameters.numberGi }}Gi"
+                echo $newsize
+                write-output $newsize | out-file -filepath $(System.DefaultWorkingDirectory)/pvc/newsize.yaml -Force
+
+          - task: Kubernetes@1
+            displayName: Set new pvc size
+            name: Setnewpvcsize
+            inputs:
+              connectionType: Kubernetes Service Connection
+              kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+              command: patch
+              arguments: pvc ${{ parameters.PVCName }} --type merge --patch-file $(System.DefaultWorkingDirectory)/pvc/newsize.yaml
+              namespace: ${{ parameters.namespace }}
+              outputFormat: none
+          
+          - task: Kubernetes@1
+            displayName: Restart DeamonSet
+            name: RestartDeamonSet
+            inputs:
+              connectionType: Kubernetes Service Connection
+              kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+              command: rollout
+              arguments: restart daemonset $(daemonsetname)
+              namespace: ${{ parameters.namespace }}
+              outputFormat: none

@@ -1,0 +1,337 @@
+trigger:
+  - none
+
+
+parameters:
+  - name: EnvName
+    displayName: EnvName
+    type: string
+    default: xxxx01
+    values:
+    - xxxx01
+    - xxxx02
+    - xxxx03
+
+  - name: CordonNode
+    displayName: CordonNode
+    type: string
+    default: cordon
+    values:
+    - cordon
+    - uncordon
+    - Allrollback
+
+variables:
+- group: AKS-vargroup
+- template: ../vars/var-${{ parameters.EnvName }}.yml
+
+pool:
+  name: WindowsDevOps
+
+stages: 
+  - stage: UncordonorCordon_AKS_${{ parameters.EnvName }}_node
+    jobs:
+      - job: Setverbs
+        displayName: Set verbs
+        steps:
+        - task: PowerShell@2
+          displayName: 'Set Verb'
+          name: SetVerb
+          inputs:
+            targetType: 'inline'
+            script: |
+              $verb='${{ parameters.CordonNode }}'
+              Write-Host "##vso[task.setvariable variable=chooseverb;isOutput=true]$verb"
+
+      - job: UncordonNode
+        displayName: Uncordon Node
+        dependsOn: Setverbs
+        condition: eq(dependencies.Setverbs.outputs['SetVerb.chooseverb'],'uncordon')
+        steps:
+          - task: Kubernetes@1
+            displayName: UnCodoning marks specified nodes
+            inputs:
+              connectionType: Kubernetes Service Connection
+              kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+              command: uncordon
+              arguments: $(nodename)
+      
+      - job: CordonNode
+        displayName: Cordon Node
+        dependsOn: Setverbs
+        condition: eq(dependencies.Setverbs.outputs['SetVerb.chooseverb'],'cordon')
+        steps:
+          - task: Kubernetes@1
+            displayName: Cordoning marks specified nodes
+            inputs:
+              connectionType: Kubernetes Service Connection
+              kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+              command: cordon
+              arguments: $(nodename)
+      
+      - job: Alltorollback
+        displayName: 'All to rollback'
+        dependsOn: Setverbs
+        condition: eq(dependencies.Setverbs.outputs['SetVerb.chooseverb'],'Allrollback')
+        steps:
+          - task: AzureCLI@2
+            displayName: Get nodes by azure cli
+            name: Getnodesbyazurecli
+            inputs:
+              azureSubscription: ${{ variables.azureserviceEndpointName }}
+              scriptType: ps
+              scriptLocation: inlineScript
+              inlineScript: |
+                $apppoolname=$(az aks nodepool list --cluster-name $(cluster) --resource-group $(resourcegroup) --query "[].[name]" --output tsv | findstr "apppool")
+                $apppoolname1=$($apppoolname -split " ")
+                $apppoolnamearry=@($apppoolname1)
+                
+                $infrapoolname=$(az aks nodepool list --cluster-name $(cluster) --resource-group $(resourcegroup) --query "[].[name]" --output tsv | findstr "infrapool")
+                $infrapoolname1=$($infrapoolname -split " ")
+                $infrapoolnamearry=@($infrapoolname1)
+                
+                $systempoolname=$(az aks nodepool list --cluster-name $(cluster) --resource-group $(resourcegroup) --query "[].[name]" --output tsv | findstr "systempool")
+                $systempoolname1=$($systempoolname -split " ")
+                $systempoolnamearry=@($systempoolname1)
+
+                $maxnum1 = $apppoolnamearry.length-1
+                $maxnum2 = $infrapoolnamearry.length-1
+                $maxnum3 = $systempoolnamearry.length-1
+
+                $newapppoolname=$apppoolnamearry[$maxnum1]
+                $newinfrapoolname=$infrapoolnamearry[$maxnum2]
+                $newsystempoolname=$systempoolnamearry[$maxnum3]
+
+                $oldapppoolname=$apppoolnamearry[0]
+                $oldinfrapoolname=$infrapoolnamearry[0]
+                $oldsystempoolname=$systempoolnamearry[0]
+
+                $oldNodepoolVersion=$(az aks nodepool list --cluster-name AKS-SB-001 --resource-group RG-T-0003321 --query "[?name=='$oldapppoolname'].orchestratorVersion" --output tsv)
+
+                az aks nodepool update --cluster-name $(cluster) --resource-group $(resourcegroup) --name $newapppoolname --disable-cluster-autoscaler --no-wait
+                az aks nodepool update --cluster-name $(cluster) --resource-group $(resourcegroup) --name $newinfrapoolname --disable-cluster-autoscaler --no-wait
+                az aks nodepool update --cluster-name $(cluster) --resource-group $(resourcegroup) --name $newsystempoolname --disable-cluster-autoscaler --no-wait
+
+                az aks nodepool update --cluster-name $(cluster) --resource-group $(resourcegroup) --name $oldapppoolname --enable-cluster-autoscaler --max-count $(appmaxcount) --min-count $(appmincount) --no-wait 
+                az aks nodepool update --cluster-name $(cluster) --resource-group $(resourcegroup) --name $oldinfrapoolname --enable-cluster-autoscaler --max-count $(inframaxcount) --min-count $(inframincount) --no-wait
+                az aks nodepool update --cluster-name $(cluster) --resource-group $(resourcegroup) --name $oldsystempoolname --enable-cluster-autoscaler --max-count $(systemmaxcount) --min-count $(systemmincount) --no-wait               
+
+                Write-Host "##vso[task.setvariable variable=newapppool;isOutput=true]$newapppoolname"
+                Write-Host "##vso[task.setvariable variable=newinfrapool;isOutput=true]$newinfrapoolname"
+                Write-Host "##vso[task.setvariable variable=newsystempool;isOutput=true]$newsystempoolname"
+                Write-Host "##vso[task.setvariable variable=oldapppool;isOutput=true]$oldapppoolname"
+                Write-Host "##vso[task.setvariable variable=oldinfrapool;isOutput=true]$oldinfrapoolname"
+                Write-Host "##vso[task.setvariable variable=oldsystempool;isOutput=true]$oldsystempoolname"
+                Write-Host "##vso[task.setvariable variable=oldversion;isOutput=true]$oldNodepoolVersion"
+         
+          - task: Kubernetes@1
+            displayName: Get Nodes
+            name: GetNodes
+            inputs:
+              connectionType: Kubernetes Service Connection
+              kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+              command: get
+              arguments: nodes
+              outputFormat: jsonpath='{.items[*].metadata.name}'
+
+          - task: PowerShell@2
+            name: ClearString
+            displayName: Clear String
+            inputs:
+              targetType: 'inline'
+              script: |
+                $clearString = $(GetNodes.KubectlOutput).Trim(",").replace(","," ").replace("  "," ").Trim()
+                Write-Host "##vso[task.setvariable variable=node;isOutput=true]$clearString"
+
+          - task: PowerShell@2
+            displayName: 'Set Variable'
+            name: SetVariable
+            inputs:
+              targetType: 'inline'
+              script: |
+                $nodes1='$(ClearString.node)'
+                $nodes2=$nodes1.split(" ")
+                $oldnodes1=$($nodes2 -match "$(Getnodesbyazurecli.oldapppool)")
+                $oldnodes2=$($nodes2 -match "$(Getnodesbyazurecli.oldinfrapool)")
+                $oldnodes3=$($nodes2 -match "$(Getnodesbyazurecli.oldsystempool)")
+                if ($null -ne $oldnodes1)
+                {
+                  $type=$oldnodes1.gettype().name
+                  if($type -eq 'string'){
+                    $oldnodesarry1=@($oldnodes1)
+                  }
+                  else{
+                    $oldnodesarry1=$oldnodes1
+                  }
+                }
+                else{
+                    $oldnodesarry1=$oldnodes1
+                }
+                if ($null -ne $oldnodes2)
+                {
+                  $type=$oldnodes2.gettype().name
+                  if($type -eq 'string'){
+                    $oldnodesarry2=@($oldnodes2)
+                  }
+                  else{
+                    $oldnodesarry2=$oldnodes2
+                  }
+                }
+                else{
+                    $oldnodesarry2=$oldnodes2
+                }
+                if ($null -ne $oldnodes3)
+                {
+                  $type=$oldnodes3.gettype().name
+                  if($type -eq 'string'){
+                    $oldnodesarry3=@($oldnodes3)
+                  }
+                  else{
+                    $oldnodesarry3=$oldnodes3
+                  }
+                }
+                else{
+                    $oldnodesarry3=$oldnodes3
+                }
+                $oldnodesarry4=$oldnodesarry1+$oldnodesarry2+$oldnodesarry3
+                $oldnodes5=$($oldnodesarry4 -join " ")
+                echo $oldnodes5
+                Write-Host "##vso[task.setvariable variable=oldnodes;isOutput=true]$oldnodes5"
+                $newnodes1=$($nodes2 -match "$(Getnodesbyazurecli.newapppool)")
+                $newnodes2=$($nodes2 -match "$(Getnodesbyazurecli.newinfrapool)")
+                $newnodes3=$($nodes2 -match "$(Getnodesbyazurecli.newsystempool)")
+                if ($null -ne $newnodes1)
+                {
+                  $type=$newnodes1.gettype().name
+                  if($type -eq 'string'){
+                    $newnodesarry1=@($newnodes1)
+                  }
+                  else{
+                    $newnodesarry1=$newnodes1
+                  }
+                }
+                else{
+                    $newnodesarry1=$newnodes1
+                }
+                if ($null -ne $newnodes2)
+                {
+                  $type=$newnodes2.gettype().name
+                  if($type -eq 'string'){
+                    $newnodesarry2=@($newnodes2)
+                  }
+                  else{
+                    $newnodesarry2=$newnodes2
+                  }
+                }
+                else{
+                    $newnodesarry2=$newnodes2
+                }
+                if ($null -ne $newnodes3)
+                {
+                  $type=$newnodes3.gettype().name
+                  if($type -eq 'string'){
+                    $newnodesarry3=@($newnodes3)
+                  }
+                  else{
+                    $newnodesarry3=$newnodes3
+                  }
+                }
+                else{
+                    $newnodesarry3=$newnodes3
+                }
+                $newnodes4=$newnodesarry1+$newnodesarry2+$newnodesarry3
+                $newnodes5=$($newnodes4 -join " ")
+                $i="--field-selector=spec.nodeName="
+                $nodeselector1=$(@(foreach ( $k in $newnodes4 ){ $i+$k }))
+                $nodeselector=$($nodeselector1 -join " ")
+                echo $nodeselector
+                echo $newnodes5
+                Write-Host "##vso[task.setvariable variable=newnodes;isOutput=true]$newnodes5"
+                Write-Host "##vso[task.setvariable variable=nodenameselector;isOutput=true]$nodeselector"
+
+          - task: AzureCLI@2
+            displayName: Remove taint from old nodes
+            name: Removetaintfromoldnodesbyazcli
+            inputs:
+              azureSubscription: ${{ variables.azureserviceEndpointName }}
+              scriptType: ps
+              scriptLocation: inlineScript
+              inlineScript: |                
+                $num1=1
+                do {
+                      $status=$(az aks nodepool show --cluster-name $(cluster) --name $(Getnodesbyazurecli.oldapppool) --resource-group $(resourcegroup) --query "provisioningState" --output tsv)
+                      $num1+= 1
+                      $s="s"
+                      Write-Output "Awaiting $num1$s for status to Succeeded..."
+                  }
+                  until($status -eq "Succeeded")
+                $num2=1
+                do {
+                      $status=$(az aks nodepool show --cluster-name $(cluster) --name $(Getnodesbyazurecli.oldinfrapool) --resource-group $(resourcegroup) --query "provisioningState" --output tsv)
+                      $num2+= 1
+                      $s="s"
+                      Write-Output "Awaiting $num2$s for status to Succeeded..."
+                  }
+                  until($status -eq "Succeeded")
+                $num3=1
+                do {
+                      $status=$(az aks nodepool show --cluster-name $(cluster) --name $(Getnodesbyazurecli.oldsystempool) --resource-group $(resourcegroup) --query "provisioningState" --output tsv)
+                      $num3+= 1
+                      $s="s"
+                      Write-Output "Awaiting $num3$s for status to Succeeded..."
+                  }
+                  until($status -eq "Succeeded")
+                az aks nodepool update -g $(resourcegroup) -n $(Getnodesbyazurecli.oldapppool) --cluster-name $(cluster) --node-taints '""'
+                az aks nodepool update -g $(resourcegroup) -n $(Getnodesbyazurecli.oldinfrapool) --cluster-name $(cluster) --node-taints '""'
+                az aks nodepool update -g $(resourcegroup) -n $(Getnodesbyazurecli.oldsystempool) --cluster-name $(cluster) --node-taints '""'
+                az aks nodepool update -g $(resourcegroup) -n $(Getnodesbyazurecli.oldinfrapool) --cluster-name $(cluster) --node-taints infra=true:NoSchedule
+                az aks nodepool update -g $(resourcegroup) -n $(Getnodesbyazurecli.oldsystempool) --cluster-name $(cluster) --node-taints CriticalAddonsOnly=true:NoSchedule
+
+          - task: Kubernetes@1
+            displayName: Remove taints on old nodes
+            name: Removetaintfromoldnodesbykubectl
+            inputs:
+              connectionType: Kubernetes Service Connection
+              kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+              command: taint
+              arguments: nodes $(SetVariable.oldnodes) version=$(Getnodesbyazurecli.oldversion):NoSchedule-
+              outputFormat: none
+
+          - task: Kubernetes@1
+            displayName: UnCordoning old nodes
+            inputs:
+              connectionType: Kubernetes Service Connection
+              kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+              command: uncordon
+              arguments: $(SetVariable.oldnodes)
+
+          - task: Kubernetes@1
+            displayName: Cordoning new nodes
+            inputs:
+              connectionType: Kubernetes Service Connection
+              kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+              command: cordon
+              arguments: $(SetVariable.newnodes)
+
+          - task: Kubernetes@1
+            displayName: Drain the new nodes
+            inputs:
+              connectionType: Kubernetes Service Connection
+              kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+              command: drain
+              arguments: $(SetVariable.newnodes) --ignore-daemonsets --delete-emptydir-data --grace-period=60
+          
+          - task: Kubernetes@1
+            displayName: Show the resources on new nodes
+            name: Showtheresourcesonnewnodes
+            inputs:
+              connectionType: Kubernetes Service Connection
+              kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+              command: get
+              arguments: pods $(SetVariable.nodenameselector) -A
+              outputFormat: jsonpath='{.items[*].metadata.ownerReferences[].kind}'
+        
+
+          
+
+

@@ -1,0 +1,51 @@
+trigger:
+  - none
+
+pool:
+  name: WindowsDevOps
+
+# Replace "xxxx" with your each AKS environment name
+# Replace "xxxxxxxxx-dev" with your namespace of your applincation on AKS cluster
+
+parameters:
+  - name: EnvName
+    displayName: EnvName
+    type: string
+    default: xxxx01
+    values:
+    - xxxx01
+    - xxxx02
+    - xxxx03
+
+  - name: RuleGroupsToDelete
+    displayName: Rule Groups To Delete
+    type: string
+    default: 'NA'
+
+  - name: runDeleteRuleGroups
+    displayName: run Delete Rule Groups
+    type: boolean
+    default: false
+
+variables:
+- group: AKS-vargroup
+- template: ../vars/var-${{ parameters.EnvName }}.yml
+
+stages:
+  - stage: Create_Alert_Rules_in_${{ parameters.EnvName }}
+    jobs:
+      - template: release/pipeline-default/steps/deploy-infra/provision.yml
+        parameters:
+          jobEnv: ${{ variables.jobEnv }}
+          serviceEndpointName: ${{ variables.azureserviceEndpointName }}
+          resourcegroup: ${{ variables.resourcegroup }}
+          RuleGroupsToDelete: ${{ parameters.RuleGroupsToDelete }}
+          runDeleteRuleGroups: ${{ parameters.runDeleteRuleGroups }}
+
+
+
+
+
+
+
+

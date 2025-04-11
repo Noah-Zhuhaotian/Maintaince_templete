@@ -1,0 +1,260 @@
+trigger:
+  - none
+
+schedules:
+- cron: "30 6 * * 0"
+  displayName: 'Run every week'
+  branches:
+    include: 
+    - main
+  always: true
+# Replace "xxxx" with your each AKS environment name
+# Replace "xxxxxxxxx-dev" with your namespace of your applincation on AKS cluster
+
+
+parameters:
+  - name: xxxx01
+    displayName: xxxx01
+    type: boolean
+    default: true
+  
+  - name: xxxx02
+    displayName: xxxx02
+    type: boolean
+    default: true
+  
+  - name: xxxx03
+    displayName: xxxx03
+    type: boolean
+    default: false
+
+
+pool:
+  name: WindowsDevOps
+
+
+stages:
+#######################################################################################
+#                              Deploy to xxxx01                                        #
+#######################################################################################
+  - ${{ if eq(parameters.xxxx01, true) }}:
+    - stage: ${{ format('DeleteUnhealthyPVC_{0}', 'xxxx01') }}
+      variables: 
+        - template: ${{ format('../vars/var-{0}.yml', 'xxxx01') }}
+      jobs:
+        - job: GetunhealthyPVC
+          displayName: 'Get unhealthy PVC'
+          steps:
+            - task: Kubernetes@1
+              displayName: 'Get pvc name'
+              name: Getpvcname
+              inputs:
+                connectionType: Kubernetes Service Connection
+                kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+                command: get
+                arguments: pvc -A
+                outputFormat: jsonpath='{.items[*].metadata.name}'
+
+            - task: Kubernetes@1
+              displayName: 'Get pvc namespace'
+              name: Getpvcnamespace
+              inputs:
+                connectionType: Kubernetes Service Connection
+                kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+                command: get
+                arguments: pvc -A
+                outputFormat: jsonpath='{.items[*].metadata.namespace}'
+
+            - task: Kubernetes@1
+              displayName: 'Get pvc status'
+              name: Getpvcstatus
+              inputs:
+                connectionType: Kubernetes Service Connection
+                kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+                command: get
+                arguments: pvc -A
+                outputFormat: jsonpath='{.items[*].status.phase}'
+
+            - task: PowerShell@2
+              displayName: 'Set pvc'
+              name: Setpvc
+              inputs:
+                targetType: 'filePath'
+                filePath: $(System.DefaultWorkingDirectory)/pvc/scripts/Getunhealthypvc.ps1
+                arguments:
+                  -ori_pvc_name $(Getpvcname.KubectlOutput)
+                  -ori_pvc_namespace $(Getpvcnamespace.KubectlOutput)
+                  -ori_pvc_status $(Getpvcstatus.KubectlOutput)
+                  -deleteyamlpath '$(System.DefaultWorkingDirectory)/pvc/unhealthy.yaml'
+            
+            - publish: $(System.DefaultWorkingDirectory)/pvc/unhealthy.yaml
+              artifact: unhealthypvc
+
+        - job: DeleteunhealthyPVC
+          displayName: 'Delete unhealthy PVC'
+          condition: not(eq(dependencies.GetunhealthyPVC.outputs['Setpvc.unhealtheypvcnames'], ''))
+          dependsOn: GetunhealthyPVC
+          variables:
+            pvcnames: $[ dependencies.GetunhealthyPVC.outputs['Setpvc.unhealtheypvcnames'] ]
+          steps:
+            - download: current
+              artifact: unhealthypvc
+
+            - task: Kubernetes@1
+              displayName: 'Delete unhealthy pvc'
+              name: Deleteunhealthypvc
+              inputs:
+                connectionType: Kubernetes Service Connection
+                kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+                command: delete
+                arguments: -f $(Pipeline.Workspace)/unhealthypvc/unhealthy.yaml
+
+#######################################################################################
+#                              Deploy to xxxx02                                       #
+#######################################################################################
+  - ${{ if eq(parameters.xxxx02, true) }}:
+    - stage: ${{ format('DeleteUnhealthyPVC_{0}', 'xxxx02') }}
+      variables: 
+        - template: ${{ format('../vars/var-{0}.yml', 'xxxx02') }}
+      jobs:
+        - job: GetunhealthyPVC
+          displayName: 'Get unhealthy PVC'
+          steps:
+            - task: Kubernetes@1
+              displayName: 'Get pvc name'
+              name: Getpvcname
+              inputs:
+                connectionType: Kubernetes Service Connection
+                kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+                command: get
+                arguments: pvc -A
+                outputFormat: jsonpath='{.items[*].metadata.name}'
+
+            - task: Kubernetes@1
+              displayName: 'Get pvc namespace'
+              name: Getpvcnamespace
+              inputs:
+                connectionType: Kubernetes Service Connection
+                kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+                command: get
+                arguments: pvc -A
+                outputFormat: jsonpath='{.items[*].metadata.namespace}'
+
+            - task: Kubernetes@1
+              displayName: 'Get pvc status'
+              name: Getpvcstatus
+              inputs:
+                connectionType: Kubernetes Service Connection
+                kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+                command: get
+                arguments: pvc -A
+                outputFormat: jsonpath='{.items[*].status.phase}'
+
+            - task: PowerShell@2
+              displayName: 'Set pvc'
+              name: Setpvc
+              inputs:
+                targetType: 'filePath'
+                filePath: $(System.DefaultWorkingDirectory)/pvc/scripts/Getunhealthypvc.ps1
+                arguments:
+                  -ori_pvc_name $(Getpvcname.KubectlOutput)
+                  -ori_pvc_namespace $(Getpvcnamespace.KubectlOutput)
+                  -ori_pvc_status $(Getpvcstatus.KubectlOutput)
+                  -deleteyamlpath '$(System.DefaultWorkingDirectory)/pvc/unhealthy.yaml'
+            
+            - publish: $(System.DefaultWorkingDirectory)/pvc/unhealthy.yaml
+              artifact: unhealthypvc
+
+        - job: DeleteunhealthyPVC
+          displayName: 'Delete unhealthy PVC'
+          condition: not(eq(dependencies.GetunhealthyPVC.outputs['Setpvc.unhealtheypvcnames'], ''))
+          dependsOn: GetunhealthyPVC
+          variables:
+            pvcnames: $[ dependencies.GetunhealthyPVC.outputs['Setpvc.unhealtheypvcnames'] ]
+          steps:
+            - download: current
+              artifact: unhealthypvc
+
+            - task: Kubernetes@1
+              displayName: 'Delete unhealthy pvc'
+              name: Deleteunhealthypvc
+              inputs:
+                connectionType: Kubernetes Service Connection
+                kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+                command: delete
+                arguments: -f $(Pipeline.Workspace)/unhealthypvc/unhealthy.yaml
+
+#######################################################################################
+#                              Deploy to xxxx03                                       #
+#######################################################################################
+  - ${{ if eq(parameters.xxxx03, true) }}:
+    - stage: ${{ format('DeleteUnhealthyPVC_{0}', 'xxxx03') }}
+      variables: 
+        - template: ${{ format('../vars/var-{0}.yml', 'xxxx03') }}
+      jobs:
+        - job: GetunhealthyPVC
+          displayName: 'Get unhealthy PVC'
+          steps:
+            - task: Kubernetes@1
+              displayName: 'Get pvc name'
+              name: Getpvcname
+              inputs:
+                connectionType: Kubernetes Service Connection
+                kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+                command: get
+                arguments: pvc -A
+                outputFormat: jsonpath='{.items[*].metadata.name}'
+
+            - task: Kubernetes@1
+              displayName: 'Get pvc namespace'
+              name: Getpvcnamespace
+              inputs:
+                connectionType: Kubernetes Service Connection
+                kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+                command: get
+                arguments: pvc -A
+                outputFormat: jsonpath='{.items[*].metadata.namespace}'
+
+            - task: Kubernetes@1
+              displayName: 'Get pvc status'
+              name: Getpvcstatus
+              inputs:
+                connectionType: Kubernetes Service Connection
+                kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+                command: get
+                arguments: pvc -A
+                outputFormat: jsonpath='{.items[*].status.phase}'
+
+            - task: PowerShell@2
+              displayName: 'Set pvc'
+              name: Setpvc
+              inputs:
+                targetType: 'filePath'
+                filePath: $(System.DefaultWorkingDirectory)/pvc/scripts/Getunhealthypvc.ps1
+                arguments:
+                  -ori_pvc_name $(Getpvcname.KubectlOutput)
+                  -ori_pvc_namespace $(Getpvcnamespace.KubectlOutput)
+                  -ori_pvc_status $(Getpvcstatus.KubectlOutput)
+                  -deleteyamlpath '$(System.DefaultWorkingDirectory)/pvc/unhealthy.yaml'
+            
+            - publish: $(System.DefaultWorkingDirectory)/pvc/unhealthy.yaml
+              artifact: unhealthypvc
+
+        - job: DeleteunhealthyPVC
+          displayName: 'Delete unhealthy PVC'
+          condition: not(eq(dependencies.GetunhealthyPVC.outputs['Setpvc.unhealtheypvcnames'], ''))
+          dependsOn: GetunhealthyPVC
+          variables:
+            pvcnames: $[ dependencies.GetunhealthyPVC.outputs['Setpvc.unhealtheypvcnames'] ]
+          steps:
+            - download: current
+              artifact: unhealthypvc
+
+            - task: Kubernetes@1
+              displayName: 'Delete unhealthy pvc'
+              name: Deleteunhealthypvc
+              inputs:
+                connectionType: Kubernetes Service Connection
+                kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+                command: delete
+                arguments: -f $(Pipeline.Workspace)/unhealthypvc/unhealthy.yaml

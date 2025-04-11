@@ -1,0 +1,12 @@
+jobs:
+- job: deploy_serviceaccount
+  displayName: Deploy Service Account
+  steps:
+  - task: Kubernetes@1
+    displayName: kubectl apply
+    inputs:
+      connectionType: Kubernetes Service Connection
+      kubernetesServiceEndpoint: ${{ parameters.serviceEndpointName }}
+      command: apply
+      arguments: -f ./AKS/serviceaccount/sa.yaml
+      namespace: basic-sa

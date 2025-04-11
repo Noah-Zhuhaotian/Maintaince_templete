@@ -1,0 +1,347 @@
+trigger:
+  - none
+
+schedules:
+- cron: "30 6 * * 0"
+  displayName: 'Run every week'
+  branches:
+    include: 
+    - main
+  always: true
+
+# Replace "xxxx" with your each AKS environment name
+# Replace "xxxxxxxxx-dev" with your namespace of your applincation on AKS cluster
+
+parameters:
+  - name: xxxx01
+    displayName: xxxx01
+    type: boolean
+    default: true
+  
+  - name: xxxx02
+    displayName: xxxx02
+    type: boolean
+    default: true
+  
+  - name: xxxx03
+    displayName: xxxx03
+    type: boolean
+    default: false
+
+pool:
+  name: WindowsDevOps
+
+  
+stages: 
+  - ${{ if eq(parameters.xxxx01, true) }}:
+    - stage: ${{ format('DeleteUnattachedDisk_{0}', 'xxxx01') }}
+      variables: 
+        - template: ${{ format('../vars/var-{0}.yml', 'xxxx01') }}
+      jobs:
+        - job: DeleteunattachedpvinAzure
+          displayName: 'Delete unattached pv in Azure'
+          steps:
+            - task: Kubernetes@1
+              displayName: Get all pv in AKS
+              name: GetallpvinAKS
+              inputs:
+                connectionType: Kubernetes Service Connection
+                kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+                command: get
+                arguments: pv
+                outputFormat: jsonpath='{.items[*].metadata.name}'
+
+            - task: Kubernetes@1
+              displayName: Get all pv in AKS status
+              name: GetallpvinAKSstatus
+              inputs:
+                connectionType: Kubernetes Service Connection
+                kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+                command: get
+                arguments: pv
+                outputFormat: jsonpath='{.items[*].status.phase}'
+
+            - task: PowerShell@2
+              displayName: 'Set pvc in AKS'
+              name: SetpvcinAKS
+              inputs:
+                targetType: 'inline'
+                script: |
+                  $c1=$(GetallpvinAKS.KubectlOutput).Trim(",").replace(","," ").replace("  "," ").Trim()
+                  $c2=$(GetallpvinAKSstatus.KubectlOutput).Trim(",").replace(","," ").replace("  "," ").Trim()
+                  $c3=$c1 -split " "
+                  $c4=$c2 -split " "
+                  Write-Host "##vso[task.setvariable variable=pvnameinaks;isOutput=true]$c1"
+                  Write-Host "##vso[task.setvariable variable=pvstatusinaks;isOutput=true]$c2"
+                  $c5 = @()
+                  for ($n=0; $n -le ($c3.length-1); $n +=1){
+                    if ($c4[$n] -ne "Bound"){
+                      $c5 = $c5 + $c3[$n]
+                    }
+                  }
+                  $c6=$c5 -join " "
+                  echo $c6
+                  Write-Host "##vso[task.setvariable variable=unhealthypvnamesinaks;isOutput=true]$c6"
+
+            - task: AzureCLI@2
+              displayName: Delete released pv in Azure
+              name: DeletereleasedpvinAzure
+              inputs:
+                azureSubscription: ${{ variables.azureserviceEndpointName }}
+                scriptType: ps
+                scriptLocation: inlineScript
+                inlineScript: |
+                  $a1='$(SetpvcinAKS.pvnameinaks)' -split " "
+                  $a2='$(SetpvcinAKS.pvstatusinaks)' -split " "
+                  $hash = @{}
+                  for ($k=0; $k -le ($a1.length-1); $k +=1){
+                    $hash = $hash + @{ $a1[$k] = $a2[$k]}
+                  }
+                  $a3=$(az disk list --resource-group $(resourcegrouppv) --query "[?diskState=='Unattached'].[name]" -o tsv)
+                  $name=@()
+                  $name1=@()
+                  foreach ( $n1 in $a3 ){
+                    $a4= $n1
+                    if ($hash[$a4]  -ne "Bound"){
+                        $name= $name +$a4
+                  }
+                  if ($hash[$a4] -eq "Released"){
+                      $name1=$name1 +$a4
+                  }
+                  }
+                  echo $name
+                  echo $name1
+                  $name2=$name1 -join " "
+                  Write-Host "##vso[task.setvariable variable=releasedpv;isOutput=true]$name2"
+                  foreach ( $n2 in $name ){
+                      az disk delete --name $n2 --resource-group $(resourcegrouppv) --no-wait -y
+                      echo "The disk $n2 has been deleted successfully!"
+                  }
+
+        - job: Deletereleasedpvinaks
+          displayName: 'Delete released pv'
+          condition: not(eq(dependencies.DeleteunattachedpvinAzure.outputs['SetpvcinAKS.unhealthypvnamesinaks'], ''))
+          dependsOn: DeleteunattachedpvinAzure
+          variables:
+            unhealthyPVnames: $[ dependencies.DeleteunattachedpvinAzure.outputs['SetpvcinAKS.unhealthypvnamesinaks'] ]
+          steps:
+            - task: Kubernetes@1
+              displayName: Delete released pv in AKS
+              name: DeletereleasedpvinAKS
+              inputs:
+                connectionType: Kubernetes Service Connection
+                kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+                command: delete
+                arguments: pv $(unhealthyPVnames)
+                outputFormat: none
+
+  - ${{ if eq(parameters.xxxx02, true) }}:
+    - stage: ${{ format('DeleteUnattachedDisk_{0}', 'xxxx02') }}
+      variables: 
+        - template: ${{ format('../vars/var-{0}.yml', 'xxxx02') }}
+      jobs:
+        - job: DeleteunattachedpvinAzure
+          displayName: 'Delete unattached pv in Azure'
+          steps:
+            - task: Kubernetes@1
+              displayName: Get all pv in AKS
+              name: GetallpvinAKS
+              inputs:
+                connectionType: Kubernetes Service Connection
+                kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+                command: get
+                arguments: pv
+                outputFormat: jsonpath='{.items[*].metadata.name}'
+
+            - task: Kubernetes@1
+              displayName: Get all pv in AKS status
+              name: GetallpvinAKSstatus
+              inputs:
+                connectionType: Kubernetes Service Connection
+                kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+                command: get
+                arguments: pv
+                outputFormat: jsonpath='{.items[*].status.phase}'
+
+            - task: PowerShell@2
+              displayName: 'Set pvc in AKS'
+              name: SetpvcinAKS
+              inputs:
+                targetType: 'inline'
+                script: |
+                  $c1=$(GetallpvinAKS.KubectlOutput).Trim(",").replace(","," ").replace("  "," ").Trim()
+                  $c2=$(GetallpvinAKSstatus.KubectlOutput).Trim(",").replace(","," ").replace("  "," ").Trim()
+                  $c3=$c1 -split " "
+                  $c4=$c2 -split " "
+                  Write-Host "##vso[task.setvariable variable=pvnameinaks;isOutput=true]$c1"
+                  Write-Host "##vso[task.setvariable variable=pvstatusinaks;isOutput=true]$c2"
+                  $c5 = @()
+                  for ($n=0; $n -le ($c3.length-1); $n +=1){
+                    if ($c4[$n] -ne "Bound"){
+                      $c5 = $c5 + $c3[$n]
+                    }
+                  }
+                  $c6=$c5 -join " "
+                  echo $c6
+                  Write-Host "##vso[task.setvariable variable=unhealthypvnamesinaks;isOutput=true]$c6"
+
+            - task: AzureCLI@2
+              displayName: Delete released pv in Azure
+              name: DeletereleasedpvinAzure
+              inputs:
+                azureSubscription: ${{ variables.azureserviceEndpointName }}
+                scriptType: ps
+                scriptLocation: inlineScript
+                inlineScript: |
+                  $a1='$(SetpvcinAKS.pvnameinaks)' -split " "
+                  $a2='$(SetpvcinAKS.pvstatusinaks)' -split " "
+                  $hash = @{}
+                  for ($k=0; $k -le ($a1.length-1); $k +=1){
+                    $hash = $hash + @{ $a1[$k] = $a2[$k]}
+                  }
+                  $a3=$(az disk list --resource-group $(resourcegrouppv) --query "[?diskState=='Unattached'].[name]" -o tsv)
+                  $name=@()
+                  $name1=@()
+                  foreach ( $n1 in $a3 ){
+                    $a4= $n1
+                    if ($hash[$a4]  -ne "Bound"){
+                        $name= $name +$a4
+                  }
+                  if ($hash[$a4] -eq "Released"){
+                      $name1=$name1 +$a4
+                  }
+                  }
+                  echo $name
+                  echo $name1
+                  $name2=$name1 -join " "
+                  Write-Host "##vso[task.setvariable variable=releasedpv;isOutput=true]$name2"
+                  foreach ( $n2 in $name ){
+                      az disk delete --name $n2 --resource-group $(resourcegrouppv) --no-wait -y
+                      echo "The disk $n2 has been deleted successfully!"
+                  }
+
+        - job: Deletereleasedpvinaks
+          displayName: 'Delete released pv'
+          condition: not(eq(dependencies.DeleteunattachedpvinAzure.outputs['SetpvcinAKS.unhealthypvnamesinaks'], ''))
+          dependsOn: DeleteunattachedpvinAzure
+          variables:
+            unhealthyPVnames: $[ dependencies.DeleteunattachedpvinAzure.outputs['SetpvcinAKS.unhealthypvnamesinaks'] ]
+          steps:
+            - task: Kubernetes@1
+              displayName: Delete released pv in AKS
+              name: DeletereleasedpvinAKS
+              inputs:
+                connectionType: Kubernetes Service Connection
+                kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+                command: delete
+                arguments: pv $(unhealthyPVnames)
+                outputFormat: none
+
+  - ${{ if eq(parameters.xxxx03, true) }}:
+    - stage: ${{ format('DeleteUnattachedDisk_{0}', 'xxxx03') }}
+      variables: 
+        - template: ${{ format('../vars/var-{0}.yml', 'xxxx03') }}
+      jobs:
+        - job: DeleteunattachedpvinAzure
+          displayName: 'Delete unattached pv in Azure'
+          steps:
+            - task: Kubernetes@1
+              displayName: Get all pv in AKS
+              name: GetallpvinAKS
+              inputs:
+                connectionType: Kubernetes Service Connection
+                kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+                command: get
+                arguments: pv
+                outputFormat: jsonpath='{.items[*].metadata.name}'
+
+            - task: Kubernetes@1
+              displayName: Get all pv in AKS status
+              name: GetallpvinAKSstatus
+              inputs:
+                connectionType: Kubernetes Service Connection
+                kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+                command: get
+                arguments: pv
+                outputFormat: jsonpath='{.items[*].status.phase}'
+
+            - task: PowerShell@2
+              displayName: 'Set pvc in AKS'
+              name: SetpvcinAKS
+              inputs:
+                targetType: 'inline'
+                script: |
+                  $c1=$(GetallpvinAKS.KubectlOutput).Trim(",").replace(","," ").replace("  "," ").Trim()
+                  $c2=$(GetallpvinAKSstatus.KubectlOutput).Trim(",").replace(","," ").replace("  "," ").Trim()
+                  $c3=$c1 -split " "
+                  $c4=$c2 -split " "
+                  Write-Host "##vso[task.setvariable variable=pvnameinaks;isOutput=true]$c1"
+                  Write-Host "##vso[task.setvariable variable=pvstatusinaks;isOutput=true]$c2"
+                  $c5 = @()
+                  for ($n=0; $n -le ($c3.length-1); $n +=1){
+                    if ($c4[$n] -ne "Bound"){
+                      $c5 = $c5 + $c3[$n]
+                    }
+                  }
+                  $c6=$c5 -join " "
+                  echo $c6
+                  Write-Host "##vso[task.setvariable variable=unhealthypvnamesinaks;isOutput=true]$c6"
+
+            - task: AzureCLI@2
+              displayName: Delete released pv in Azure
+              name: DeletereleasedpvinAzure
+              inputs:
+                azureSubscription: ${{ variables.azureserviceEndpointName }}
+                scriptType: ps
+                scriptLocation: inlineScript
+                inlineScript: |
+                  $a1='$(SetpvcinAKS.pvnameinaks)' -split " "
+                  $a2='$(SetpvcinAKS.pvstatusinaks)' -split " "
+                  $hash = @{}
+                  for ($k=0; $k -le ($a1.length-1); $k +=1){
+                    $hash = $hash + @{ $a1[$k] = $a2[$k]}
+                  }
+                  $a3=$(az disk list --resource-group $(resourcegrouppv) --query "[?diskState=='Unattached'].[name]" -o tsv)
+                  $name=@()
+                  $name1=@()
+                  foreach ( $n1 in $a3 ){
+                    $a4= $n1
+                    if ($hash[$a4]  -ne "Bound"){
+                        $name= $name +$a4
+                  }
+                  if ($hash[$a4] -eq "Released"){
+                      $name1=$name1 +$a4
+                  }
+                  }
+                  echo $name
+                  echo $name1
+                  $name2=$name1 -join " "
+                  Write-Host "##vso[task.setvariable variable=releasedpv;isOutput=true]$name2"
+                  foreach ( $n2 in $name ){
+                      az disk delete --name $n2 --resource-group $(resourcegrouppv) --no-wait -y
+                      echo "The disk $n2 has been deleted successfully!"
+                  }
+
+        - job: Deletereleasedpvinaks
+          displayName: 'Delete released pv'
+          condition: not(eq(dependencies.DeleteunattachedpvinAzure.outputs['SetpvcinAKS.unhealthypvnamesinaks'], ''))
+          dependsOn: DeleteunattachedpvinAzure
+          variables:
+            unhealthyPVnames: $[ dependencies.DeleteunattachedpvinAzure.outputs['SetpvcinAKS.unhealthypvnamesinaks'] ]
+          steps:
+            - task: Kubernetes@1
+              displayName: Delete released pv in AKS
+              name: DeletereleasedpvinAKS
+              inputs:
+                connectionType: Kubernetes Service Connection
+                kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+                command: delete
+                arguments: pv $(unhealthyPVnames)
+                outputFormat: none
+          
+          
+
+
+          
+
+      

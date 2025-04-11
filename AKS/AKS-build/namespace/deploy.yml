@@ -1,0 +1,12 @@
+jobs:
+- job: deploy_namespace
+  displayName: Deploy Basic Namespacs
+  steps:
+  - task: Kubernetes@1
+    displayName: kubectl apply
+    inputs:
+      connectionType: Kubernetes Service Connection
+      kubernetesServiceEndpoint: ${{ parameters.serviceEndpointName }}
+      #kubernetesServiceEndpoint: 'AKS Service Connection - apm0004419-dev PoC'
+      command: apply
+      arguments: -f ./AKS/namespace/ns.yaml

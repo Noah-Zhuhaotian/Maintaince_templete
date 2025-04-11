@@ -1,0 +1,27 @@
+controller:
+  nodeSelector:
+    beta.kubernetes.io/os: linux
+    nodepool: infrapool
+  service:
+    loadBalancerIP: "__publicIngressControllerIP__"
+    annotations:
+      service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+  #ingressClass: "nginxintranet"
+  ingressClassResource:
+    name: nginxpublic
+    enabled: true
+    default: false
+    controllerValue: "k8s.io/public-ingress-nginx"
+  replicaCount: 2
+  extraArgs:
+    default-ssl-certificate: "basic-public-ic/default-public-tls"
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      namespace: "basic-public-ic" 
+  tolerations:
+    - key: "infra"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule" 

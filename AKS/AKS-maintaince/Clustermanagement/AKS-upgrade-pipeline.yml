@@ -1,0 +1,370 @@
+trigger:
+  - none
+
+
+parameters:
+  - name: EnvName
+    displayName: EnvName
+    type: string
+    default: xxxx01
+    values:
+    - xxxx01
+    - xxxx02
+    - xxxx03
+
+
+variables:
+- group: AKS-vargroup
+- template: ../vars/var-${{ parameters.EnvName }}.yml
+
+pool:
+  name: WindowsDevOps
+
+
+stages:
+  - stage: Back_Up_Quota_Rolebinding_${{ parameters.EnvName }}
+    jobs:
+      - job: BackUpQuota
+        displayName: Backup Quota
+        steps:
+        - task: Kubernetes@1
+          displayName: Get Quota
+          name: GetQuota
+          inputs:
+            connectionType: Kubernetes Service Connection
+            kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+            command: get
+            arguments: resourcequota -A
+            outputFormat: jsonpath='{range .items[*]}{.metadata.name}{" "}{.metadata.namespace}{"\n"}{end}'
+
+        - task: PowerShell@2
+          displayName: 'Wirte Result to Yaml'
+          name: WritQuotaYaml
+          inputs:
+            targetType: 'inline'
+            script: |
+              $a11=$(GetQuota.KubectlOutput)
+              write-output $a11 | out-file -filepath $(System.DefaultWorkingDirectory)/Clustermanagement/quota_backup.yaml -Force
+              
+        - publish: $(System.DefaultWorkingDirectory)/Clustermanagement/quota_backup.yaml
+          artifact: quotaArtifact_${{ parameters.EnvName }}
+
+      - job: BackupAllPipelineRolebinding
+        displayName: Backup All Pipeline Rolebinding
+        steps:
+        - task: Kubernetes@1
+          displayName: Get Cluster Pipeline RoleBinding
+          name: GetClusterPipelineRoleBinding
+          inputs:
+            connectionType: Kubernetes Service Connection
+            kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+            command: get
+            arguments: rolebinding -A
+            outputFormat: jsonpath='{.items[*].metadata.name}'
+
+        - task: PowerShell@2
+          displayName: 'Set rolebinding'
+          name: SetClusterRoleBinding
+          inputs:
+            pwsh: true
+            targetType: 'inline'
+            script: |
+              Write-Host "##vso[task.setvariable variable=RoleBinding;isoutput=true]$(GetClusterPipelineRoleBinding.KubectlOutput)"
+
+        - task: Kubernetes@1
+          displayName: Get Cluster Pipeline RoleBinding
+          name: GetClusterServiceAccount
+          inputs:
+            connectionType: Kubernetes Service Connection
+            kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+            command: get
+            arguments: rolebinding -A
+            outputFormat: jsonpath='{.items[*].subjects[?(@.namespace=="basic-sa")].name}'
+
+        - task: PowerShell@2
+          displayName: 'Set serviceaccount'
+          name: SetClusterServiceAccount
+          inputs:
+            pwsh: true
+            targetType: 'inline'
+            script: |
+              Write-Host "##vso[task.setvariable variable=ServiceAccount;isoutput=true]$(GetClusterServiceAccount.KubectlOutput)"
+
+        - task: PowerShell@2
+          displayName: 'Get All Rolebinding Yaml'
+          name: GetAllRolebindingYaml
+          inputs:
+            targetType: 'inline'
+            script: |
+              $rolebindingname1=$($(SetClusterRoleBinding.RoleBinding) | ForEach Split ",")
+              $rolebindingname2=$($rolebindingname1 -join " ")
+              $rolebindingname3=$(@($rolebindingname2 | ForEach Split " "))
+              $rolebindingname=$($rolebindingname3 -match "sa-namespace-edit.*")
+              $rolebindingyaml=$(@(foreach ( $k in $rolebindingname ) { "  name: "+$k }))
+
+              $namespace1=$($rolebindingname | ForEach Split "-")
+              $namespace2=$(@(for ($a = 3; $a -le ($namespace1.length - 1); $a += 6) { $namespace1[$a] }))
+              $namespace3=$(@(for ($a = 4; $a -le ($namespace1.length - 1); $a += 6) { $namespace1[$a] }))
+              $namespace=$(@(for ($a=0;$a -le ($namespace3.length-1);$a++) { $namespace2[$a]+"-"+$namespace3[$a] }))
+              $namespaceyaml=$(@(foreach ( $k in $namespace ) { "  namespace: "+$k }))
+
+              $serviceaccount1=$(@($(SetClusterServiceAccount.ServiceAccount) | ForEach Split ","))
+              $serviceaccount2=$($serviceaccount1 -join " ")
+              $serviceaccount3=$(@($serviceaccount2 | ForEach Split " "))
+              $serviceaccount4=$($serviceaccount3 -match "sa.*")
+              $serviceaccountyaml = $(@(foreach ( $k in $serviceaccount4 ) { "  name: "+$k }))
+
+              $a1=$(@("apiVersion: rbac.authorization.k8s.io/v1","kind: RoleBinding","metadata:"))
+              $a2=$($a1 -join "`n")
+              $a3=$(@(foreach ( $k in $rolebindingyaml ){ $a2+"`n"+$k}))
+              $a4=$(@(for ($k=0;$k -le ($rolebindingyaml.length-1);$k++) { $a3[$k]+"`n"+$namespaceyaml[$k] }))
+              $a5=$(@("roleRef:","  apiGroup: rbac.authorization.k8s.io","  kind: ClusterRole","  name: sa-namespace-edit","subjects:","- kind: ServiceAccount"))
+              $a6=$($a5 -join "`n")
+              $a7=$(@(foreach ( $k in $a4 ){ $k+"`n"+$a6}))
+              $a8=$(@(for ($k=0;$k -le ($rolebindingyaml.length-1);$k++) { $a7[$k]+"`n"+$serviceaccountyaml[$k] }))
+              $a9=$(@("  namespace: basic-sa","---"))
+              $a10=$($a9 -join "`n")
+              $a11=$(@(foreach ( $k in $a8 ){ $k+"`n"+$a10+"`n"}))
+              write-output $a11 | out-file -filepath $(System.DefaultWorkingDirectory)/Clustermanagement/ClusterRoleBinding.yaml
+              Write-Host "##vso[task.setvariable variable=RolebindingYaml;isOutput=true]$a11"
+              
+        - publish: $(System.DefaultWorkingDirectory)/Clustermanagement/ClusterRoleBinding.yaml
+          artifact: cluster_rolebindingYamlArtifact_${{ parameters.EnvName }}.yml
+
+        - task: Kubernetes@1
+          displayName: Get User Pipeline RoleBinding
+          name: GetUserPipelineRoleBinding
+          inputs:
+            connectionType: Kubernetes Service Connection
+            kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+            command: get
+            arguments: rolebinding -A
+            outputFormat: jsonpath='{.items[*].metadata.name}'
+
+        - task: PowerShell@2
+          displayName: 'Set rolebinding'
+          name: SetUserRoleBinding
+          inputs:
+            pwsh: true
+            targetType: 'inline'
+            script: |
+              Write-Host "##vso[task.setvariable variable=RoleBinding;isoutput=true]$(GetUserPipelineRoleBinding.KubectlOutput)"
+
+        - task: Kubernetes@1
+          displayName: Get User Pipeline RoleBinding
+          name: GetUserServiceAccount
+          inputs:
+            connectionType: Kubernetes Service Connection
+            kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+            command: get
+            arguments: rolebinding -A
+            outputFormat: jsonpath='{.items[*].subjects[?(@.kind=="Group")].name}'
+
+        - task: PowerShell@2
+          displayName: 'Set serviceaccount'
+          name: SetUserServiceAccount
+          inputs:
+            pwsh: true
+            targetType: 'inline'
+            script: |
+              Write-Host "##vso[task.setvariable variable=ServiceAccount;isoutput=true]$(GetUserServiceAccount.KubectlOutput)"
+
+        - task: Kubernetes@1
+          displayName: Get User Pipeline RoleBinding
+          name: GetUserNameSpace
+          inputs:
+            connectionType: Kubernetes Service Connection
+            kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+            command: get
+            arguments: rolebinding -A
+            outputFormat: jsonpath='{.items[*].subjects[?(@.kind=="Group")].namespace}'
+
+        - task: PowerShell@2
+          displayName: 'Set User NameSpace'
+          name: SetUserNameSpace
+          inputs:
+            pwsh: true
+            targetType: 'inline'
+            script: |
+              Write-Host "##vso[task.setvariable variable=NameSpace;isoutput=true]$(GetUserNameSpace.KubectlOutput)"
+
+        - task: PowerShell@2
+          name: GetUserrolebindings
+          displayName: Get User rolebindings
+          inputs:
+            targetType: 'filePath'
+            filePath: $(System.DefaultWorkingDirectory)/Clustermanagement/scripts/backup_rolebinding.ps1
+            arguments:
+              -ori_rolebinding_name $(SetUserRoleBinding.RoleBinding)
+              -ori_namespace $(SetUserNameSpace.NameSpace)
+              -ori_sa_name $(SetUserServiceAccount.ServiceAccount)
+              -matchPattern 'namespace-user-*'
+              -backup_yaml_path '$(System.DefaultWorkingDirectory)/Clustermanagement/UserRoleBinding.yaml'
+              
+        - publish: $(System.DefaultWorkingDirectory)/Clustermanagement/UserRoleBinding.yaml
+          artifact: user_rolebindingYamlArtifact_${{ parameters.EnvName }}.yml
+
+  - stage: Upgrade_AKS_${{ parameters.EnvName }}
+    jobs:
+      - job: OnlyUpgradeControlPlane
+        displayName: Only Upgrade Control Plane 
+        steps:
+        - task: AzureCLI@2
+          displayName: Upgrade API Server
+          name: UpgradeAPIServer
+          inputs:
+            azureSubscription: ${{ variables.azureserviceEndpointName }}
+            scriptType: ps
+            scriptLocation: 'scriptPath'
+            scriptPath: '$(System.DefaultWorkingDirectory)/Clustermanagement/scripts/aks-upgrade.ps1'
+            arguments:
+              -resourcegroup '$(resourcegroup)'
+              -cluster '$(cluster)'
+              -forupgradeversion '$(forupgradeversion)'
+
+  - stage: Operate_AKS_${{ parameters.EnvName }}_nodepool
+    jobs:
+      - job: Addnodepool
+        displayName: Add Node Pool 
+        steps:
+        - task: AzureCLI@2
+          displayName: Add Node Pool
+          name: AddNodePool
+          inputs:
+            azureSubscription: ${{ variables.azureserviceEndpointName }}
+            scriptType: ps
+            scriptLocation: 'scriptPath'
+            scriptPath: '$(System.DefaultWorkingDirectory)/Clustermanagement/scripts/aks-addnodepool.ps1'
+            arguments:
+              -resourcegroup '$(resourcegroup)'
+              -cluster '$(cluster)'
+              -nodepoolVersion '$(forupgradeversion)'
+              -appnodecount '$(appnodecount)'
+              -appmaxcount '$(appmaxcount)'
+              -appmincount '$(appmincount)'
+              -apposdisksize '$(apposdisksize)'
+              -apposdisktype '$(apposdisktype)'
+              -appvmsize '$(appvmsize)'
+              -inframaxcount '$(inframaxcount)'
+              -inframincount '$(inframincount)'
+              -infranodecount '$(infranodecount)'
+              -infraosdisksize '$(infraosdisksize)'
+              -infraosdisktype '$(infraosdisktype)'
+              -infravmsize '$(infravmsize)'
+              -systemmaxcount '$(systemmaxcount)'
+              -systemmincount '$(systemmincount)'
+              -systemnodecount '$(systemnodecount)'
+              -systemosdisksize '$(systemosdisksize)'
+              -systemosdisktype '$(systemosdisktype)'
+              -systemvmsize '$(systemvmsize)'
+              -maxpods '$(maxpods)'
+
+        - task: AzureCLI@2
+          displayName: Disable Autoscaler
+          inputs:
+            azureSubscription: ${{ variables.azureserviceEndpointName }}
+            scriptType: ps
+            scriptLocation: inlineScript
+            inlineScript: |
+              az aks nodepool update --cluster-name $(cluster) --resource-group $(resourcegroup) --name $(AddNodePool.oldapppool) --disable-cluster-autoscaler --no-wait
+              az aks nodepool update --cluster-name $(cluster) --resource-group $(resourcegroup) --name $(AddNodePool.oldinfrapool) --disable-cluster-autoscaler --no-wait
+              az aks nodepool update --cluster-name $(cluster) --resource-group $(resourcegroup) --name $(AddNodePool.oldsystempool) --disable-cluster-autoscaler --no-wait
+
+        - task: Kubernetes@1
+          displayName: Get nodes
+          name: GetNodes
+          inputs:
+            connectionType: Kubernetes Service Connection
+            kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+            command: get
+            arguments: nodes
+            outputFormat: jsonpath='{.items[*].metadata.name}'
+
+        - task: PowerShell@2
+          name: ClearString
+          displayName: Clear String
+          inputs:
+            targetType: 'inline'
+            script: |
+              $clearString = $(GetNodes.KubectlOutput).Trim(",").replace(","," ").replace("  "," ").Trim()
+              Write-Host "##vso[task.setvariable variable=node;isOutput=true]$clearString"
+      
+        - task: PowerShell@2
+          displayName: 'Match the old nodes'
+          name: Matchtheoldnodes
+          inputs:
+            targetType: 'inline'
+            script: |
+              $nodes1='$(ClearString.node)'
+              $nodes2=$nodes1.split(" ")
+              function Gagetype {
+                    param (
+                        $inputString
+                    )
+                    $returnArray = $null
+                    if($null -ne $inputString){
+                        $type=$inputString.gettype()
+                        if($type -eq 'string'){
+                          $returnArray=@($inputString)
+                        }
+                        else{
+                          $returnArray=$inputString
+                        }
+                    }
+                    return $returnArray
+                }
+              $nodes3=$($nodes2 -match '$(AddNodePool.apppool).*')
+              $nodes4=$($nodes2 -match '$(AddNodePool.infrapool).*')
+              $nodes5=$($nodes2 -match '$(AddNodePool.systempool).*')
+              $oldnodesarry1 = Gagetype -inputString $nodes3
+              $oldnodesarry2 = Gagetype -inputString $nodes4
+              $oldnodesarry3 = Gagetype -inputString $nodes5
+              $oldnodesarry4=$oldnodesarry1+$oldnodesarry2+$oldnodesarry3
+              $oldnodes5=$($oldnodesarry4 -join " ")
+              $i="--field-selector=spec.nodeName="
+              $nodeselector1=$(@(foreach ( $k in $oldnodesarry4 ){ $i+$k }))
+              $nodeselector=$($nodeselector1 -join " ")
+              echo $oldnodes5
+              echo $nodeselector
+              Write-Host "##vso[task.setvariable variable=oldnodenames;isOutput=true]$oldnodes5"
+              Write-Host "##vso[task.setvariable variable=nodenameselector;isOutput=true]$nodeselector"
+
+        - task: Kubernetes@1
+          displayName: Add taints on old nodes
+          inputs:
+            connectionType: Kubernetes Service Connection
+            kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+            command: taint
+            arguments: nodes $(Matchtheoldnodes.oldnodenames) version=$(AddNodePool.oldversion):NoSchedule
+            outputFormat: none
+       
+        - task: Kubernetes@1
+          displayName: Cordoning marks specified nodes
+          inputs:
+            connectionType: Kubernetes Service Connection
+            kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+            command: cordon
+            arguments: $(Matchtheoldnodes.oldnodenames)
+
+        - task: Kubernetes@1
+          displayName: Drain the existing nodes
+          inputs:
+            connectionType: Kubernetes Service Connection
+            kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+            command: drain
+            arguments: $(Matchtheoldnodes.oldnodenames) --ignore-daemonsets --delete-emptydir-data --grace-period=60
+
+        - task: Kubernetes@1
+          displayName: Show the resources on old nodes
+          name: Showtheresourcesonnewnodes
+          inputs:
+            connectionType: Kubernetes Service Connection
+            kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+            command: get
+            arguments: pods $(Matchtheoldnodes.nodenameselector) -A
+            outputFormat: jsonpath='{.items[*].metadata.ownerReferences[].kind}'
+          
+
+
+      
+    

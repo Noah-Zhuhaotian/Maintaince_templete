@@ -1,0 +1,60 @@
+trigger:
+  - none
+
+
+pool:
+  name: WindowsDevOps
+
+parameters:
+- name: EnvName
+  displayName: EnvName
+  type: string
+  default: xxxx01
+  values:
+  - xxxx01
+  - xxxx02
+  - xxxx03
+
+- name: intranet_IngressController
+  displayName: intranet_IngressController
+  type: boolean
+  default: true
+
+- name: public_IngressController
+  displayName: public_IngressController
+  type: boolean
+  default: true
+
+- name: kured
+  displayName: kured
+  type: boolean
+  default: true
+
+
+variables:
+  - template: vars/var-${{ parameters.EnvName }}.yml
+  - group: AKS-vargroup  # This is the variable group name in Azure DevOps for the scerects and variables used in the pipeline
+
+stages:
+  - ${{ if eq(parameters.intranet_IngressController, true) }}:
+    - stage: Deploy_${{ parameters.EnvName }}_intranet_IngressController
+      jobs:
+        - template: ingresscontroller/intranet/deploy.yml
+          parameters:
+            serviceEndpointName: ${{ variables.serviceEndpointName }}
+            releaseName: ${{ variables.Ingressrelease }}
+
+  - ${{ if eq(parameters.public_IngressController, true) }}:
+    - stage: Deploy_${{ parameters.EnvName }}_public_IngressController
+      jobs:
+        - template: ingresscontroller/public/deploy.yml
+          parameters:
+            serviceEndpointName: ${{ variables.serviceEndpointName }}
+            releaseName: ${{ variables.Ingresspublicrelease }}
+
+  - ${{ if eq(parameters.kured, true) }}: 
+    - stage: Upgrade_${{ parameters.EnvName }}_kured
+      jobs:
+        - template: kured/deploy.yml
+          parameters:
+            serviceEndpointName: ${{ variables.serviceEndpointName }}

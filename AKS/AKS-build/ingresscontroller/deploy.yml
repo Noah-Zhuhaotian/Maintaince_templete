@@ -1,0 +1,103 @@
+jobs:
+  - job: GetPublicIngressCert
+    displayName: Get Public Ingress Cert
+    steps:
+      - task: Kubernetes@1
+        displayName: Get cert
+        name: GetCert
+        inputs:
+          connectionType: Kubernetes Service Connection
+          kubernetesServiceEndpoint: ${{ parameters.serviceEndpointName }}
+          command: get
+          arguments: secret
+          namespace: basic-public-ic
+          outputFormat: jsonpath='{.items[*].metadata.name}'
+      
+      - task: PowerShell@2
+        displayName: 'Set Cert name'
+        name: setcertname
+        inputs:
+          targetType: 'inline'
+          script: |
+            Write-Host "##vso[task.setvariable variable=certname;isOutput=true]$(GetCert.KubectlOutput)"
+
+  - job: createTLSCertsecret
+    displayName: create TLS Cert secret
+    dependsOn: GetPublicIngressCert
+    condition: not(contains(dependencies.GetPublicIngressCert.outputs['setcertname.certname'], 'tls'))
+    steps:
+      - task: DownloadSecureFile@1
+        name: caCertificate
+        displayName: 'Download CA certificate'
+        inputs:
+          secureFile: 'star_aks_dow_com.pem'
+
+      - task: DownloadSecureFile@1
+        name: privateKey
+        displayName: 'Download private Key'
+        inputs:
+          secureFile: 'public.key'
+
+      - task: Kubernetes@1
+        displayName: kubectl create TLS Cert secret
+        inputs:
+          connectionType: Kubernetes Service Connection
+          kubernetesServiceEndpoint: ${{ parameters.serviceEndpointName }}
+          namespace: basic-public-ic
+          command: create
+          arguments: secret tls default-public-tls --key $(privateKey.secureFilePath) --cert $(caCertificate.secureFilePath)
+    
+  - job: deploypublicingresscontroller
+    displayName: Deploy Nginx Ingress Controller
+    dependsOn: createTLSCertsecret
+    condition: and(not(failed()), not(canceled()))
+    steps:
+      - task: qetza.replacetokens.replacetokens-task.replacetokens@3
+        displayName: 'Replace value in ingress-nginx.yaml'
+        inputs:
+          targetFiles: 'AKS/ingresscontroller/public/*.yaml*'
+          tokenPrefix: '__'
+          tokenSuffix: '__'
+      - task: HelmDeploy@0
+        displayName: helm repo add ingress-nginx
+        inputs:
+          connectionType: Kubernetes Service Connection
+          kubernetesServiceEndpoint: ${{ parameters.serviceEndpointName }}
+          namespace: basic-public-ic
+          command: repo
+          arguments: add ingress-nginx https://kubernetes.github.io/ingress-nginx
+      - task: HelmDeploy@0
+        displayName: helm repo update
+        inputs:
+          connectionType: Kubernetes Service Connection
+          kubernetesServiceEndpoint: ${{ parameters.serviceEndpointName }}
+          namespace: basic-public-ic
+          command: repo
+          arguments: update
+      - task: HelmDeploy@0
+        displayName: helm repo list
+        inputs:
+          connectionType: Kubernetes Service Connection
+          kubernetesServiceEndpoint: ${{ parameters.serviceEndpointName }}
+          namespace: basic-public-ic
+          command: repo
+          arguments: list
+      - task: HelmDeploy@0
+        displayName: helm install nginx
+        inputs:
+          connectionType: Kubernetes Service Connection
+          kubernetesServiceEndpoint: ${{ parameters.serviceEndpointName }}
+          namespace: basic-public-ic
+          command: upgrade
+          install: true
+          chartName: ingress-nginx/ingress-nginx
+          releaseName: ${{ parameters.releaseName }}
+          valueFile: AKS/ingresscontroller/public/public-ingress-nginx.yaml
+          arguments:
+            --version $(Ingressversion)
+            --set controller.replicaCount=2 
+            --set controller.nodeSelector."beta\.kubernetes\.io/os"=linux 
+            --set defaultBackend.nodeSelector."beta\.kubernetes\.io/os"=linux 
+            --set controller.admissionWebhooks.patch.nodeSelector."beta\.kubernetes\.io/os"=linux 
+            --set controller.service.annotations."service\.beta\.kubernetes\.io/azure-load-balancer-health-probe-request-path"=/healthz 
+            --set controller.config."proxy-body-size"=8m

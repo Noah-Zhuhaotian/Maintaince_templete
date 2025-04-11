@@ -1,0 +1,41 @@
+jobs:
+  - job: Vaildateworkloadidentity
+    displayName: Vaildate workloadidentity
+    steps:
+      - task: AzureCLI@2
+        displayName: Get workloadidentity
+        name: Getworkloadidentity
+        inputs:
+          azureSubscription: ${{ parameters.servicePrincipleName }}
+          scriptType: ps
+          scriptLocation: inlineScript
+          inlineScript: |
+            $isWorkLoadIdentity=$(az aks show -n $(clustername) --resource-group $(resourcegroup) --query "securityProfile.workloadIdentity.enabled" --output tsv)
+            Write-Host "##vso[task.setvariable variable=WorkLoadIdentity;isOutput=true]$isWorkLoadIdentity"
+            
+  - job: Enableworkloadidentity
+    displayName: Enable workloadidentity
+    dependsOn: Vaildateworkloadidentity
+    condition: not(eq(dependencies.Vaildateworkloadidentity.outputs['Getworkloadidentity.WorkLoadIdentity'] ,'true'))
+    steps:
+      - task: AzureCLI@2
+        displayName: Install aks-preview
+        name: Installaks_preview
+        inputs:
+          azureSubscription: ${{ parameters.servicePrincipleName }}
+          scriptType: ps
+          scriptLocation: inlineScript
+          inlineScript: |
+            az upgrade --yes
+            az extension add --name aks-preview
+            az extension update --name aks-preview 
+
+      - task: AzureCLI@2
+        displayName: Enable WorkLoadIdentity
+        name: EnableWorkLoadIdentity
+        inputs:
+          azureSubscription: ${{ parameters.servicePrincipleName }}
+          scriptType: ps
+          scriptLocation: inlineScript
+          inlineScript: | 
+            az aks update --resource-group $(resourcegroup) --name $(clustername) --enable-oidc-issuer --enable-workload-identity

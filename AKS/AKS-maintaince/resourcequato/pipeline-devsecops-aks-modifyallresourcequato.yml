@@ -1,0 +1,82 @@
+trigger:
+  - none
+
+pool:
+  name: WindowsDevOps
+
+parameters:
+  - name: EnvName
+    displayName: EnvName
+    type: string
+    default: xxxx01
+    values:
+    - xxxx01
+    - xxxx02
+    - xxxx03
+
+variables:
+- group: AKS-vargroup
+- template: ../vars/var-${{ parameters.EnvName }}.yml
+
+stages:
+  - stage: Modify_All_ResourceQuota_in__${{ parameters.EnvName }}
+    jobs:
+      - job: ValidateResourceQuota
+        displayName: Validate ResourceQuota
+        steps:
+        - task: Kubernetes@1
+          name: Getresourcequotaname
+          displayName: Get All ResourceQuotas
+          inputs:
+            connectionType: Kubernetes Service Connection
+            kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+            command: get
+            arguments: resourcequota -A
+            outputFormat: jsonpath='{.items[*].metadata.name}'
+
+        - task: Kubernetes@1
+          name: Getallnamespace
+          displayName: Get all namespace
+          inputs:
+            connectionType: Kubernetes Service Connection
+            kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+            command: get
+            arguments: resourcequota -A
+            outputFormat: jsonpath='{.items[*].metadata.namespace}'
+
+        - task: PowerShell@2
+          name: compositionString
+          inputs:
+            targetType: 'filePath'
+            filePath: $(System.DefaultWorkingDirectory)/resourcequato/ModifyAllResourceQuota.ps1
+            arguments:
+              -ori_resourcequato_name $(Getresourcequotaname.KubectlOutput)
+              -ori_namespace $(Getallnamespace.KubectlOutput)
+              -defaultresourcequota_cpu_limit $(defaultresourcequota_cpu_limit)
+              -defaultresourcequota_mem_limit $(defaultresourcequota_mem_limit)
+              -mediumresourcequota_cpu_limit $(mediumresourcequota_cpu_limit)
+              -mediumresourcequota_mem_limit $(mediumresourcequota_mem_limit)
+              -largeresourcequota_cpu_limit $(largeresourcequota_cpu_limit)
+              -largeresourcequota_mem_limit $(largeresourcequota_mem_limit)
+
+        - task: Kubernetes@1
+          displayName: Delete Old resourcequota
+          inputs:
+            connectionType: Kubernetes Service Connection
+            kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+            command: delete
+            useConfigurationFile: true
+            configuration: '$(System.DefaultWorkingDirectory)/resourcequato/all_yaml_ori.yaml'
+
+        - task: Kubernetes@1
+          displayName: Apply new resourcequota
+          inputs:
+            connectionType: Kubernetes Service Connection
+            kubernetesServiceEndpoint: ${{ variables.serviceEndpointName }}
+            command: apply
+            useConfigurationFile: true
+            configuration: '$(System.DefaultWorkingDirectory)/resourcequato/all_yaml.yaml'
+
+
+
+

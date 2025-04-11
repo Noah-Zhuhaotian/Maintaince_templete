@@ -1,0 +1,13 @@
+jobs:
+  - job: EnableImageCleaner
+    displayName: Enable ImageCleaner
+    steps:
+      - task: AzureCLI@2
+        displayName: Enable ImageCleaner
+        name: EnableImageCleaner
+        inputs:
+          azureSubscription: ${{ parameters.servicePrincipleName }}
+          scriptType: ps
+          scriptLocation: inlineScript
+          inlineScript: |
+            az aks update --resource-group $(resourcegroup) --name $(clustername) --enable-image-cleaner --image-cleaner-interval-hours 168

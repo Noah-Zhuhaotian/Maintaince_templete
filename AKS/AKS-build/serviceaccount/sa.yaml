@@ -1,0 +1,199 @@
+#### Cluster admin for ITS BA Team ####
+#kubectl get serviceaccount -n basic-sa
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sa-admin
+  namespace: basic-sa
+
+#### Cluster reader for ITS BA Team's backup pipeline ####
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sa-reader
+  namespace: basic-sa
+
+#kubectl get clusterrolebinding  | findstr "sa"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: sa-cluster-admin-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- kind: ServiceAccount
+  name: sa-admin
+  namespace: basic-sa
+
+
+#### workprocess based serviceaccounts and cluster role to assign to namespacs####
+#kubectl get serviceaccount -n basic-sa
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sa-mi
+  namespace: basic-sa
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sa-isc
+  namespace: basic-sa
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sa-doc
+  namespace: basic-sa
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sa-dxc
+  namespace: basic-sa
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sa-ehs
+  namespace: basic-sa
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sa-lp
+  namespace: basic-sa
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sa-ms
+  namespace: basic-sa
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sa-pa
+  namespace: basic-sa
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sa-pp
+  namespace: basic-sa
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sa-pur
+  namespace: basic-sa
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sa-rr
+  namespace: basic-sa
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sa-test
+  namespace: basic-sa
+
+#### cluster role to assign to namespacs####
+#### This is a cluster role, it doesn't mean it has cluster access.####
+#### The RoleBinding will be namespace level. ##
+#kubectl get ClusterRole | findstr "sa"
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: sa-namespace-edit
+rules:
+- apiGroups: ["*"]
+  resources: ["configmaps", "endpoints", "events", "limitranges", "persistentvolumeclaims", "pods", "podtemplates", "replicationcontrollers", "secrets", "serviceaccounts", "services", "azureidentities", "azureidentitybindings", "azurepodidentityexceptions", "controllerrevisions", "daemonsets", "deployments", "replicasets", "statefulsets", "localsubjectaccessreviews", "horizontalpodautoscalers", "cronjobs", "jobs", "xls", "configs", "leases", "endpointslices", "events", "pods", "ingresses", "networkpolicies", "poddisruptionbudgets", "secretproviderclasses", "secretproviderclasspodstatuses", "volumesnapshots", "constraintpodstatuses", "constrainttemplatepodstatuses", "csistoragecapacities", "bindings", "rolebindings", "roles", "clustertriggerauthentications", "scaledjobs", "scaledobjects", "triggerauthentications"]
+  verbs: ["*"]
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: cluster-user
+rules:
+- apiGroups: ["*"]
+  resources: ["*"]
+  verbs: ["get", "list", "view", "create"]
+###This will be given the winapps-seat-chg this group's purview
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cluster-view-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-user
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: 7bfab3d2-2268-431b-aebc-99fc058eb300
+- kind: ServiceAccount
+  name: sa-reader
+  namespace: basic-sa
+
+# #### The RoleBinding will be given in the application project, Below is an example##
+# # This will be handlered in the devsecops-aks pipeline by portal.
+# #kubectl get rolebinding -n apm0004419-dev
+# ---
+# apiVersion: rbac.authorization.k8s.io/v1
+# kind: RoleBinding
+# metadata:
+#   name: sa-namespace-edit-apm0004419-dev-rolebinding
+#   namespace: apm0004419-sb
+# roleRef:
+#   apiGroup: rbac.authorization.k8s.io
+#   kind: ClusterRole
+#   name: sa-namespace-edit
+# subjects:
+# - kind: ServiceAccount
+#   name: sa-mi
+#   namespace: basic-sa
+
+# #### cluster view role to assign to Developers####
+# #### This will be handlered in the devsecops-aks pipeline by portal.
+
+### Create the service account token manually.
+---
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/service-account-token
+metadata:
+  name: sa-reader-token
+  annotations:
+    kubernetes.io/service-account.name: sa-reader
+
+---
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/service-account-token
+metadata:
+  name: sa-test-token
+  annotations:
+    kubernetes.io/service-account.name: sa-test
+
