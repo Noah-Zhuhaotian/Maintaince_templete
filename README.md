@@ -1,9 +1,13 @@
 # recording Maintaince_templete from previous projects
 
-### Azure DevOps
+### Azure
 1. [DeploytoWinServer](DeploytoWinServer): To deploy api and webserver in Azure vitural machines.
 
 2. [AKS](AKS): AKS cluster maintanice scrips.
+
+### AWS
+1. [Demo-Tomcat](/AWS/Demo-Tomcat/): Deploying a Java Application to Amazon EC2 Using CodePipeline and CodeDeploy.
+Reference: [Deploying a Java Application to Amazon EC2 Using CodePipeline and CodeDeploy (with GitHub OAuth Token Managed by Secrets Manager)]()
 
 ### Function
 1. [retry.py](/function/retry.py): To implement a retry mechanism. The `do_action()` function simulates an action that may fail by always raising an exception. It's decorated with the `@retry` decorator from tenacity, which automatically retries the function with a fixed wait of 2 seconds between attempts.

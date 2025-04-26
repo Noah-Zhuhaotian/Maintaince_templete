@@ -1,0 +1,18 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      java: openjdk11  # Specify the Java version you want to use
+    commands:
+      - echo Installing Maven...
+      - yum install -y maven
+  build:
+    commands:
+      - echo Building the application...
+      - mvn clean package
+artifacts:
+  files:
+    - target/*.war
+    - appspec.yml
+    - scripts/deploy.sh
