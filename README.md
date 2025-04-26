@@ -1,4 +1,4 @@
-# recording Maintaince_templete from previous projects
+# Recording Maintaince_templete from previous projects
 
 ### Azure
 1. [DeploytoWinServer](DeploytoWinServer): To deploy api and webserver in Azure vitural machines.
