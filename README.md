@@ -6,7 +6,7 @@
 2. [AKS](AKS): AKS cluster maintanice scrips.
 
 ### AWS
-1. [Demo-Tomcat](/AWS/Demo-Tomcat/): Deploying a Java Application to Amazon EC2 Using CodePipeline and CodeDeploy.
+1. [Demo-Tomcat](/AWS/Demo-Tomcat/): Deploying a Java Application to Amazon EC2 Using CodePipeline and CodeDeploy.  
 Reference: [Deploying a Java Application to Amazon EC2 Using CodePipeline and CodeDeploy (with GitHub OAuth Token Managed by Secrets Manager)](https://github.com/Noah-Zhuhaotian/Documents/blob/main/AWS/AWS-DevOps/Deploying%20a%20Java%20Application%20to%20Amazon%20EC2%20Using%20CodePipeline%20and%20CodeDeploy%20(with%20GitHub%20OAuth%20Token%20Managed%20by%20Secrets%20Manager).md)
 
 ### Function
