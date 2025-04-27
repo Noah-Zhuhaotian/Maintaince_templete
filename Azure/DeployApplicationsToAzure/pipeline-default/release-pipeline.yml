@@ -1,0 +1,90 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+  - none
+
+variables:
+  - template: vars/var-common.yml
+
+stages:
+  - stage: Build
+    jobs:
+      - template: steps/build/build.yml
+        parameters:
+          buildConfiguration: 'release'
+
+      - template: steps/build/test.yml
+        parameters:
+          buildConfiguration: 'release'
+
+      - template: steps/build/scan-checkmarx.yml
+
+      - template: steps/build/scan-ckosa.yml
+
+      - template: steps/build/scan-sonarqube.yml
+      
+  - stage: ProvisionDev
+    variables:
+      - template: vars/var-dev.yml
+    jobs:
+      - template: steps/deploy-infra/provision.yml
+        parameters:
+          jobEnv: ${{ variables.jobEnv }}
+          serviceEndpointName: ${{ variables.serviceEndpointName }}
+
+  - stage: DeployDev
+    variables:
+      - template: vars/var-dev.yml
+    jobs:
+      - template: steps/deploy-solution/deploy.yml
+        parameters:
+          jobEnv: ${{ variables.jobEnv }}
+          serviceEndpointName: ${{ variables.serviceEndpointName }}
+          sqlServiceEndpointName: ${{ variables.sqlServiceEndpointName }}
+          password: '$(ServerPassword)'
+          username: '$(Username)'
+
+  - stage: ProvisionTest
+    variables:
+      - template: vars/var-test.yml
+    jobs:
+      - template: steps/deploy-infra/provision.yml
+        parameters:
+          jobEnv: ${{ variables.jobEnv }}
+          serviceEndpointName: ${{ variables.serviceEndpointName }}
+
+  - stage: DeployTest
+    variables:
+      - template: vars/var-test.yml
+    jobs:
+      - template: steps/deploy-solution/deploy.yml
+        parameters:
+          jobEnv: ${{ variables.jobEnv }}
+          serviceEndpointName: ${{ variables.serviceEndpointName }}
+          sqlServiceEndpointName: ${{ variables.sqlServiceEndpointName }}
+          username: '$(Username)'
+          password: '$(ServerPassword)'
+
+  - stage: ProvisionProd
+    variables:
+      - template: vars/var-prod.yml
+    jobs:
+      - template: steps/deploy-infra/provision.yml
+        parameters:
+          jobEnv: ${{ variables.jobEnv }}
+          serviceEndpointName: ${{ variables.serviceEndpointName }}
+
+  - stage: DeployProd
+    variables:
+      - template: vars/var-prod.yml
+    jobs:
+      - template: steps/deploy-solution/deploy.yml
+        parameters:
+          jobEnv: ${{ variables.jobEnv }}
+          serviceEndpointName: ${{ variables.serviceEndpointName }}
+          sqlServiceEndpointName: ${{ variables.sqlServiceEndpointName }}
+          password: '$(ProdPassword)'
+          username: '$(ProdUsername)'

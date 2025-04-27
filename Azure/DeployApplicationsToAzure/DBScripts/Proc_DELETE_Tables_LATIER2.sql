@@ -1,0 +1,15 @@
+
+  CREATE OR REPLACE EDITIONABLE PROCEDURE "PWSYS"."PROC_DELETE_TABLES_LATIER2" 
+AS
+BEGIN
+delete from INTERM_LATIER2_INV;
+delete from INTERM_LATIER2_MAT;
+delete from Interm_LATIER2_COMP_SUB;
+delete from Interm_LATIER2_COMP_MAIN;
+delete from Interm_LATIER2_LOC;
+delete from SARA312LA_ForExport;
+delete from SARA312LA_ERRORLOG;
+delete from MAT_EFF_VLD_GHS_HAZARD;
+COMMIT;
+END;
+/
