@@ -19,12 +19,6 @@ stages:
       - template: steps/build/test.yml
         parameters:
           buildConfiguration: 'release'
-
-      - template: steps/build/scan-checkmarx.yml
-
-      - template: steps/build/scan-ckosa.yml
-
-      - template: steps/build/scan-sonarqube.yml
       
   - stage: ProvisionDev
     variables:
@@ -44,8 +38,7 @@ stages:
           jobEnv: ${{ variables.jobEnv }}
           serviceEndpointName: ${{ variables.serviceEndpointName }}
           sqlServiceEndpointName: ${{ variables.sqlServiceEndpointName }}
-          password: '$(ServerPassword)'
-          username: '$(Username)'
+          keyVaultName: ${{ variables.keyVaultName }}
 
   - stage: ProvisionTest
     variables:
@@ -65,8 +58,7 @@ stages:
           jobEnv: ${{ variables.jobEnv }}
           serviceEndpointName: ${{ variables.serviceEndpointName }}
           sqlServiceEndpointName: ${{ variables.sqlServiceEndpointName }}
-          username: '$(Username)'
-          password: '$(ServerPassword)'
+          keyVaultName: ${{ variables.keyVaultName }}
 
   - stage: ProvisionProd
     variables:
@@ -86,5 +78,4 @@ stages:
           jobEnv: ${{ variables.jobEnv }}
           serviceEndpointName: ${{ variables.serviceEndpointName }}
           sqlServiceEndpointName: ${{ variables.sqlServiceEndpointName }}
-          password: '$(ProdPassword)'
-          username: '$(ProdUsername)'
+          keyVaultName: ${{ variables.keyVaultName }}

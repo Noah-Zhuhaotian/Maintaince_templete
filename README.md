@@ -1,9 +1,10 @@
 # Recording Maintaince_templete from previous projects
 
 ### Azure
-1. [DeploytoWinServer](DeploytoWinServer): To deploy api and webserver in Azure vitural machines.
+1. [DeploytoWinServer](/Azure/DeployApplicationsToAzure/): The templetes to deploy application on Azure
+*Reference: [Deploying Applications with Azure DevOps](https://github.com/Noah-Zhuhaotian/Documents/blob/main/Azure/Azure-DevOps/Deploying-Applications-with-Azure-DevOps.md)*
 
-2. [AKS](AKS): AKS cluster maintanice scrips.
+2. [AKS](/Azure/AKS/): AKS cluster maintanice scrips.
 
 ### AWS
 1. [Demo-Tomcat](/AWS/Demo-Tomcat/): Deploying a Java Application to Amazon EC2 Using CodePipeline and CodeDeploy.  
@@ -19,4 +20,4 @@
 4. [docker backup mysql](/function/docker_mysql_backup.py): To use Docker backup Mysql DB.
 
 ### Monitoring
-1. [GrafanaTemplete](GrafanaTemplete): Dashboard for monitoring Kubernets Cluster.
+1. [GrafanaTemplete](/Monitoring/GrafanaTemplete/GrafanaTemplete): Dashboard for monitoring Kubernets Cluster.

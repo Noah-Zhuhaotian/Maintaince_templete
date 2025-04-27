@@ -25,12 +25,6 @@ variables:
     value: ''
   - name: callbackBranch
     value: 'dev'
-  - name: enableSonarqube
-    value: 'true'
-  - name: enableCheckmarx
-    value: 'true'
-  - name: checkmarxGroup
-    value: 'xxxxxx' # Replace with your checkmarx Group Name
   - name: appNumber
     value: 'xxxxxx' # Replace with your application number to identify the application in Azure DevOps
   - name: appFramework

@@ -74,6 +74,28 @@ variable "redisName" {
   type = string
 }
 
+# SQL Server variables
+variable "createSqlServer" {
+  default = false
+}
+
+variable "sqlServerName" {
+  type = string
+}
+
+variable "sqlDatabaseName" {
+  type = string
+}
+
+variable "sqlAdminUser" {
+  type = string
+}
+
+variable "sqlAdminPassword" {
+  type = string
+  sensitive = true
+}
+
 #######################################################
 ## terraform storage
 #######################################################
@@ -102,6 +124,12 @@ provider "azurerm" {
   skip_provider_registration  = true
   features {}
 }
+
+#######################################################
+## Data Source to get current configuration
+#######################################################
+data "azurerm_client_config" "current" {}
+
 #######################################################
 ## Application Service plan
 #######################################################
@@ -144,6 +172,16 @@ resource "azurerm_windows_web_app" "main" {
   
   identity {
     type = "SystemAssigned"
+  }
+
+  # Add app settings to connect to Key Vault - will be populated if Key Vault is created
+  dynamic "app_settings" {
+    for_each = var.createKeyVault ? [1] : []
+    content {
+      "KeyVaultName" = var.keyVaultName
+      "ASPNETCORE_ENVIRONMENT" = var.env
+      "WEBSITE_RUN_FROM_PACKAGE" = "1"
+    }
   }
 }
 
@@ -225,4 +263,64 @@ resource "azurerm_redis_cache" "main" {
   minimum_tls_version = "1.2"
 
   redis_configuration {}
+}
+
+########################################################
+## SQL Server and Database
+########################################################
+resource "azurerm_mssql_server" "main" {
+  count                        = var.createSqlServer ? 1 : 0
+  name                         = var.sqlServerName
+  location                     = var.location
+  resource_group_name          = var.resourceGroupName
+  version                      = "12.0"
+  administrator_login          = var.sqlAdminUser
+  administrator_login_password = var.sqlAdminPassword
+
+  azuread_administrator {
+    login_username = "AzureAD Admin"
+    object_id      = data.azurerm_client_config.current.object_id
+    tenant_id      = var.tenantId
+  }
+}
+
+resource "azurerm_mssql_database" "main" {
+  count       = var.createSqlServer ? 1 : 0
+  name        = var.sqlDatabaseName
+  server_id   = azurerm_mssql_server.main[0].id
+  collation   = "SQL_Latin1_General_CP1_CI_AS"
+  sku_name    = "S0"
+  max_size_gb = 2
+}
+
+# Save DB connection string to Key Vault if both SQL and KeyVault are created
+resource "azurerm_key_vault_secret" "db_connection" {
+  count        = var.createSqlServer && var.createKeyVault ? 1 : 0
+  name         = "ConnectionStrings--DefaultConnection"
+  value        = "Server=tcp:${azurerm_mssql_server.main[0].fully_qualified_domain_name},1433;Initial Catalog=${azurerm_mssql_database.main[0].name};Persist Security Info=False;User ID=${var.sqlAdminUser};Password=${var.sqlAdminPassword};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
+  key_vault_id = azurerm_key_vault.main[0].id
+  depends_on   = [azurerm_key_vault.main, azurerm_mssql_database.main]
+}
+
+########################################################
+## Output Values
+########################################################
+output "app_service_url" {
+  description = "URL of the deployed App Service"
+  value       = "https://${azurerm_windows_web_app.main.default_hostname}"
+}
+
+output "sql_server_fqdn" {
+  description = "FQDN of the SQL Server"
+  value       = var.createSqlServer ? azurerm_mssql_server.main[0].fully_qualified_domain_name : ""
+}
+
+output "key_vault_name" {
+  description = "Name of the Key Vault"
+  value       = var.createKeyVault ? azurerm_key_vault.main[0].name : ""
+}
+
+output "app_service_principal_id" {
+  description = "Principal ID of the App Service Managed Identity"
+  value       = azurerm_windows_web_app.main.identity[0].principal_id
 }

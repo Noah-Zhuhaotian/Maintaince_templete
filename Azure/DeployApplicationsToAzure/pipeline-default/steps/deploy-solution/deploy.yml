@@ -1,15 +1,14 @@
 parameters:
-  jobEnv: ''
-  serviceEndpointName: ''
-  sqlServiceEndpointName: ''
-  password: ""
-
+  jobEnv: '$(jobEnv)'
+  serviceEndpointName: '$(serviceEndpointName)'
+  sqlServiceEndpointName: '$(sqlServiceEndpointName)'
+  keyVaultName: '$(keyVaultName)'
 
 jobs:
-  - deployment: DeploySolution
-    displayName: DeploySolution
+  - deployment: DeployTodoApi
+    displayName: Deploy TodoApi
     pool:
-      name: 'WindowsDevOps'
+      vmImage: 'windows-latest'
     environment: ${{ parameters.jobEnv }}
     strategy:
       runOnce:
@@ -22,30 +21,33 @@ jobs:
                 artifactName: '$(serviceName)'
                 downloadPath: '$(System.DefaultWorkingDirectory)'
             
-            - task: WindowsMachineFileCopy@2
-              displayName: 'Copy files from $(System.DefaultWorkingDirectory)/$(serviceName)/apiPkg.zip'
+            - task: AzureKeyVault@2
+              displayName: 'Download secrets from KeyVault'
               inputs:
-                SourcePath: '$(System.DefaultWorkingDirectory)/$(serviceName)/apiPkg.zip'
-                MachineNames: '$(WebServers)'
-                AdminUserName: '${{ parameters.username }}'
-                AdminPassword: '${{ parameters.password }}'
-                TargetPath: 'E:\Replace\yourpath\here'
-          
-            - task: PowerShell@2
-              displayName: 'Deploy the $(resourceName)'
-              inputs:
-                targetType: 'filePath'
-                pwsh: true
-                filePath: $(System.DefaultWorkingDirectory)/$(serviceName)/scripts/deploywebsitestoIaaS.ps1
-                arguments:
-                  -User '${{ parameters.username }}'
-                  -pass '${{ parameters.password }}'
-                  -Computer '$(WebServers)'
-                  -resourceName '$(resourceName)'
-                  -env '$(env)'
-                  -backupPath 'E:\Replace\yourpath\here\apibackup.zip'
-                  -updatePackagePath 'E:\Replace\yourpath\here\apiPkg.zip'
-                  -appPath 'E:\Replace\yourpath\here\api'
+                azureSubscription: '${{ parameters.serviceEndpointName }}'
+                KeyVaultName: '${{ parameters.keyVaultName }}'
+                SecretsFilter: 'TodoApi-ConnectionString,TodoApi-AppInsightKey'
+                RunAsPreJob: false
 
-                
-                  
+            - task: AzureRmWebAppDeployment@4
+              displayName: 'Deploy TodoApi to Azure App Service'
+              inputs:
+                ConnectionType: 'AzureRM'
+                azureSubscription: '${{ parameters.serviceEndpointName }}'
+                appType: 'webApp'
+                WebAppName: '$(resourceName)'
+                packageForLinux: '$(System.DefaultWorkingDirectory)/$(serviceName)/todoApiPkg.zip'
+                AppSettings: >
+                  -ConnectionStrings:DefaultConnection "$(TodoApi-ConnectionString)" 
+                  -ApplicationInsights:InstrumentationKey "$(TodoApi-AppInsightKey)"
+                  -WEBSITE_RUN_FROM_PACKAGE "1"
+            
+            - task: SqlAzureDacpacDeployment@1
+              displayName: 'Deploy database if needed'
+              inputs:
+                azureSubscription: '${{ parameters.sqlServiceEndpointName }}'
+                AuthenticationType: 'connectionString'
+                ConnectionString: '$(TodoApi-ConnectionString)'
+                deployType: 'SqlTask'
+                SqlFile: '$(System.DefaultWorkingDirectory)/$(serviceName)/sql/deploy.sql'
+                IpDetectionMethod: 'AutoDetect'

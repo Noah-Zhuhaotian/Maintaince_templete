@@ -4,7 +4,7 @@ Param(
     [string]$clientKey
 )
 
-$tennantId = 'c3e32f53-cb7f-4809-968d-1cc4ccc785fe'
+$tennantId = 'xxx-xxxx-xxxx-xxxxx-xxxxxx'  # replace with your tenant id
 $tokenEndpoint = {https://login.windows.net/{0}/oauth2/token} -f $tennantId 
 $tokenBody = @{
     'resource'= $clientId
@@ -26,6 +26,7 @@ $token = Invoke-RestMethod @tokenParams
 
 # construct headers, body
 $insightId = $env:insightVar -replace '"',''
+$identityId = $env:identityVar -replace '"',''
 $headers = @{   
     'Content-Type' = 'application/json'
     'Authorization' = 'Bearer ' + $token.access_token
@@ -48,6 +49,7 @@ $BodyContent = @{
     storageName = $env:storageName
     redisName = $env:redisName
     branch = $env:callbackBranch
+    aksIdentityId = $identityId
 }
 $Body = $BodyContent | ConvertTo-Json
 Write-Host $Body

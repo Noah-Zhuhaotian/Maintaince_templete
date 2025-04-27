@@ -49,7 +49,3 @@ variables:
     value: 'false'
   - name: redisName
     value: 'xxxxxxxx'  # Replace with your redis Name in Azure
-  - name: WebServers
-    value: 'xxxx.xxxx.xxxx.xxxx'  # Replace with your server ip or hostname in Azure
-  - name: Username
-    value: 'xxxxxxx'   # Replace with your server's username

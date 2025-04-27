@@ -68,6 +68,41 @@ jobs:
                   }
                 azurePowerShellVersion: LatestVersion
                 ConnectedServiceNameARM: ${{ parameters.serviceEndpointName }}
+                
+            # SQL Database Deployment Step
+            - task: SqlAzureDacpacDeployment@1
+              displayName: 'Deploy Database Schema'
+              condition: and(succeeded(), eq(variables['deployDatabase'], 'true'))
+              inputs:
+                azureSubscription: ${{ parameters.serviceEndpointName }}
+                AuthenticationType: 'servicePrincipal'
+                ServerName: '$(sqlServerName).database.windows.net'
+                DatabaseName: $(sqlDatabaseName)
+                SqlUsername: $(sqlAdminUser)
+                SqlPassword: $(sqlAdminPassword)
+                deployType: 'SqlTask'
+                SqlFile: '$(System.DefaultWorkingDirectory)/$(serviceName)/release/DBScripts/init.sql'
+                IpDetectionMethod: 'AutoDetect'
+
+            # Configure SQL Firewall to allow App Service
+            - task: AzureCLI@2
+              displayName: 'Configure SQL Server Firewall Rules'
+              condition: and(succeeded(), eq(variables['configureSqlFirewall'], 'true'))
+              inputs:
+                azureSubscription: ${{ parameters.serviceEndpointName }}
+                scriptType: 'ps'
+                scriptLocation: 'inlineScript'
+                inlineScript: |
+                  # Get the outbound IPs of the App Service
+                  $webApp = Get-AzWebApp -ResourceGroupName $(resourceGroupName) -Name $(resourceName)
+                  $outboundIPs = $webApp.OutboundIpAddresses.Split(',')
+                  
+                  # Configure SQL Server Firewall Rules
+                  foreach ($ip in $outboundIPs) {
+                    $ruleName = "AppService-" + $ip.Replace(".", "-")
+                    Write-Output "Adding rule: $ruleName for IP: $ip"
+                    New-AzSqlServerFirewallRule -ResourceGroupName $(resourceGroupName) -ServerName $(sqlServerName) -FirewallRuleName $ruleName -StartIpAddress $ip -EndIpAddress $ip
+                  }
 
             - task: AzureCLI@1
               displayName: 'Get Azure Resource value'

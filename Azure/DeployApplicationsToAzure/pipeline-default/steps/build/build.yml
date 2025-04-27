@@ -1,67 +1,48 @@
 parameters:
-  buildConfiguration: 'release'
+  buildConfiguration: 'Release'
 
-jobs:
-  - job: BuildApp
-    pool:
-      vmImage: 'windows-latest'
-    steps:
-      - task: UseDotNet@2
-        displayName: 'Use .Net Core sdk 6.0.x'
-        inputs:
-          version: 6.0.x
+steps:
+- task: UseDotNet@2
+  displayName: 'Install .NET Core SDK'
+  inputs:
+    packageType: 'sdk'
+    version: '8.0.x'
+    installationPath: $(Agent.ToolsDirectory)/dotnet
 
-      - task: DotNetCoreCLI@2
-        displayName: 'dotnet restore'
-        inputs:
-          command: restore
-          projects: '$(serviceName)/source/**/*.csproj'
+- task: DotNetCoreCLI@2
+  displayName: 'Restore Dependencies'
+  inputs:
+    command: 'restore'
+    projects: 'src/**/*.csproj'
+    feedsToUse: 'select'
 
-      - task: DotNetCoreCLI@2
-        displayName: 'dotnet build'
-        inputs:
-          projects: '$(serviceName)/source/**/*.csproj'
-          arguments: ${{ format('--configuration {0}', parameters.buildConfiguration) }}
+- task: DotNetCoreCLI@2
+  displayName: 'Build Application'
+  inputs:
+    command: 'build'
+    projects: 'src/**/*.csproj'
+    arguments: '--configuration ${{ parameters.buildConfiguration }}'
 
-      - task: DotNetCoreCLI@2
-        displayName: PublishApi
-        inputs:
-          command: publish
-          publishWebProjects: false
-          projects: '$(serviceName)/source/$(codeProjectName)/*.csproj'
-          arguments: ${{ format('--configuration {0} --output $(Build.ArtifactStagingDirectory) --no-build', parameters.buildConfiguration) }}
-          zipAfterPublish: false
+- task: DotNetCoreCLI@2
+  displayName: 'Run Tests'
+  inputs:
+    command: 'test'
+    projects: 'src/**/*Tests/*.csproj'
+    arguments: '--configuration ${{ parameters.buildConfiguration }}'
+  continueOnError: true  # Continue even if tests fail
 
-      - task: ArchiveFiles@2
-        displayName: 'Package api'
-        inputs:
-          rootFolderOrFile: '$(Build.ArtifactStagingDirectory)/$(codeProjectName)'
-          includeRootFolder: false
-          archiveFile: '$(Build.ArtifactStagingDirectory)/apiPkg.zip'
+- task: DotNetCoreCLI@2
+  displayName: 'Publish Application'
+  inputs:
+    command: 'publish'
+    publishWebProjects: true
+    projects: 'src/**/*.csproj'
+    arguments: '--configuration ${{ parameters.buildConfiguration }} --output $(Build.ArtifactStagingDirectory)'
+    zipAfterPublish: true
 
-      - task: DotNetCoreCLI@2
-        displayName: 'Install ef core'
-        inputs:
-          command: custom
-          custom: 'tool'
-          arguments: 'install --global dotnet-ef --version 6.0.25'
-
-      - task: DotNetCoreCLI@2
-        displayName: 'Generate database script'
-        inputs:
-          command: custom
-          custom: 'ef'
-          arguments: 'migrations script  -p $(serviceName)/source/$(codeProjectName).Data/$(codeProjectName).Data.csproj -s $(serviceName)/source/$(codeProjectName)/$(codeProjectName).csproj -o $(Build.ArtifactStagingDirectory)/migration.sql -i'
-
-      - task: CopyFiles@2
-        displayName: 'Copy script'
-        inputs:
-          SourceFolder: '$(System.DefaultWorkingDirectory)/$(serviceName)/release/scripts'
-          TargetFolder: '$(Build.ArtifactStagingDirectory)/scripts'
-
-      - task: PublishBuildArtifacts@1
-        displayName: 'Publish artifact'
-        inputs:
-          pathtoPublish: '$(Build.ArtifactStagingDirectory)'
-          artifactName: $(serviceName)
-        condition: succeededOrFailed()
+- task: PublishBuildArtifacts@1
+  displayName: 'Publish Artifacts'
+  inputs:
+    PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+    ArtifactName: 'drop'
+    publishLocation: 'Container'

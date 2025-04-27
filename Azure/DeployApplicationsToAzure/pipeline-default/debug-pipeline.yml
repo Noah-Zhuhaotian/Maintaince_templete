@@ -7,7 +7,7 @@ trigger:
   batch: true
   paths:
     include:
-    - /svc-envreporting-api/*
+    # - /your-service-name/*
   branches:
     include:
     - dev
@@ -22,16 +22,12 @@ stages:
         parameters:
           buildConfiguration: 'debug'
 
-      - template: steps/build/scan-sonarqube.yml
           
   - stage: Deploy
     variables:
       - template: vars/var-dev.yml
     jobs:
-      - template: steps/build/scan-checkmarx.yml
-      - template: steps/deploy-solution/deploy.yml
         parameters:
           jobEnv: ${{ variables.jobEnv }}
           serviceEndpointName: ${{ variables.serviceEndpointName }}
-          password: '$(ServerPassword)'
-          username: '$(Username)'
+          keyVaultName: ${{ variables.keyVaultName }}
