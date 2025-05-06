@@ -6,7 +6,7 @@
 
 2. [AKS](/Azure/AKS/): AKS cluster maintanice scrips.  
    
-3. [Setting Up Secure Connections in Azure Data Factory with Key Vault](/Azure/Security/DF_SQL/): A templete of creating a linked service in Azure Data Factory that connects to Azure SQL Database using Microsoft SQL Server authentication, with the password securely stored in Azure Key Vault.
+3. [Setting Up Secure Connections in Azure Data Factory with Key Vault](/Azure/Security/DF_SQL/): A templete of creating a linked service in Azure Data Factory that connects to Azure SQL Database using Microsoft SQL Server authentication, with the password securely stored in Azure Key Vault.  
 *Reference: [Setting Up Secure Connections in Azure Data Factory with Key Vault](https://github.com/Noah-Zhuhaotian/Documents/blob/main/Azure/Azure-DevOps/Deploying-Applications-with-Azure-DevOps.md)*
 
 ### AWS
