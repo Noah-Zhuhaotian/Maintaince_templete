@@ -1,0 +1,30 @@
+# vars/var-test.yml - Test environment variables
+variables:
+  - name: resourceName
+    value: 'data-integration-test'
+  - name: env
+    value: 'test'
+  - name: jobEnv
+    value: 'data-integration-test'
+  - name: serviceEndpointName
+    value: 'Azure-Test-ServiceConnection'
+  - name: terraformStateFile
+    value: 'data-integration-test.tfstate'
+  - name: subscriptionId
+    value: '__SUBSCRIPTION_ID__'
+  - name: resourceGroupName
+    value: 'data-integration-test-rg'
+  - name: location
+    value: 'East US'
+  - name: sqlServerName
+    value: 'data-integration-test-sql'
+  - name: sqlDatabaseName
+    value: 'data-integration-test-db'
+  - name: sqlAdminUser
+    value: 'sqladmin'
+  - name: sqlAdminPassword
+    value: '$(sqlAdminPasswordTest)'
+  - name: keyVaultName
+    value: 'data-int-test-kv'
+  - name: dataFactoryName
+    value: 'data-integration-test-adf'

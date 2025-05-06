@@ -1,0 +1,18 @@
+# vars/var-common.yml - Common variables for all environments
+variables:
+  - group: data-integration-vargroup # Replace with your service variable group
+  - group: common-vargroup
+  - name: serviceName
+    value: 'data-integration'
+  - name: tenantId
+    value: '__TENANT_ID__'
+  - name: terraformVersion
+    value: '1.5.0'
+  - name: terraformStorageAccount
+    value: 'tfstatestorageacct'
+  - name: terraformStorageContainer
+    value: 'tfstate'
+  - name: terraformStateResourceGroup
+    value: 'terraform-state-rg'
+  - name: provision
+    value: 'true'

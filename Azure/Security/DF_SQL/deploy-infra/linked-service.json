@@ -1,0 +1,9 @@
+{
+    "name": "AzureSqlDatabaseLinkedService",
+    "properties": {
+        "type": "AzureSqlDatabase",
+        "typeProperties": {
+            "connectionString": "Server=tcp:${sqlServerName}.database.windows.net,1433;Database=${sqlDatabaseName};User ID=${sqlAdminUser};Password=@{linkedService().KeyVault.getSecret('sql-password')};Encrypt=true;Connection Timeout=30;"
+        }
+    }
+}

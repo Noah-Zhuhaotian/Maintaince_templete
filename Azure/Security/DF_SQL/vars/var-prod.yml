@@ -1,0 +1,30 @@
+# vars/var-prod.yml - Production environment variables
+variables:
+  - name: resourceName
+    value: 'data-integration-prod'
+  - name: env
+    value: 'prod'
+  - name: jobEnv
+    value: 'data-integration-prod'
+  - name: serviceEndpointName
+    value: 'Azure-Prod-ServiceConnection'
+  - name: terraformStateFile
+    value: 'data-integration-prod.tfstate'
+  - name: subscriptionId
+    value: '__SUBSCRIPTION_ID__'
+  - name: resourceGroupName
+    value: 'data-integration-prod-rg'
+  - name: location
+    value: 'East US'
+  - name: sqlServerName
+    value: 'data-integration-prod-sql'
+  - name: sqlDatabaseName
+    value: 'data-integration-prod-db'
+  - name: sqlAdminUser
+    value: 'sqladmin'
+  - name: sqlAdminPassword
+    value: '$(sqlAdminPasswordProd)'
+  - name: keyVaultName
+    value: 'data-int-prod-kv'
+  - name: dataFactoryName
+    value: 'data-integration-prod-adf'

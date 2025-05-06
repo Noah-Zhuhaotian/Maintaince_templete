@@ -1,0 +1,45 @@
+# Azure CI/CD Pipeline for Data Integration solution
+# https://aka.ms/yaml
+
+trigger:
+  branches:
+    include:
+    - dev
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+# Include variables from external files
+variables:
+  - template: vars/var-common.yml
+
+stages:
+  - stage: ProvisionDev
+    displayName: 'Provision Dev Environment'
+    variables:
+      - template: vars/var-dev.yml
+    jobs:
+      - template: steps/deploy-infra/provision.yml
+        parameters:
+          jobEnv: ${{ variables.jobEnv }}
+          serviceEndpointName: ${{ variables.serviceEndpointName }}
+
+  - stage: ProvisionTest
+    displayName: 'Provision Test Environment'
+    variables:
+      - template: vars/var-test.yml
+    jobs:
+      - template: steps/deploy-infra/provision.yml
+        parameters:
+          jobEnv: ${{ variables.jobEnv }}
+          serviceEndpointName: ${{ variables.serviceEndpointName }}
+
+  - stage: ProvisionProd
+    displayName: 'Provision Production Environment'
+    variables:
+      - template: vars/var-prod.yml
+    jobs:
+      - template: steps/deploy-infra/provision.yml
+        parameters:
+          jobEnv: ${{ variables.jobEnv }}
+          serviceEndpointName: ${{ variables.serviceEndpointName }}

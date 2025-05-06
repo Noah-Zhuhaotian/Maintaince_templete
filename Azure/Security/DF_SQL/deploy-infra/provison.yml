@@ -1,0 +1,73 @@
+parameters:
+  jobEnv: ''
+  serviceEndpointName: ''
+
+jobs:
+  - deployment: DeployInfra
+    displayName: Deploy Infrastructure
+    pool:
+      vmImage: 'ubuntu-latest'
+    condition: and(succeeded(), eq(variables['provision'], 'true'))
+    environment: ${{ parameters.jobEnv }}
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+            - checkout: self
+
+            - task: TerraformInstaller@0
+              displayName: 'Install Terraform'
+              inputs:
+                terraformVersion: $(terraformVersion)
+
+            - task: qetza.replacetokens.replacetokens-task.replacetokens@3
+              displayName: 'Replace tokens in Terraform files'
+              inputs:
+                targetFiles: '$(System.DefaultWorkingDirectory)/steps/deploy-infra/*.tf*'
+                tokenPrefix: '__'
+                tokenSuffix: '__'
+
+            - task: AzureCLI@2
+              displayName: 'Create Resource Group if not exists'
+              inputs:
+                azureSubscription: ${{ parameters.serviceEndpointName }}
+                scriptType: 'bash'
+                scriptLocation: 'inlineScript'
+                inlineScript: |
+                  # Check if resource group exists
+                  if [ $(az group exists --name $(resourceGroupName)) = false ]; then
+                    echo "Creating resource group $(resourceGroupName)..."
+                    az group create --name $(resourceGroupName) --location "$(location)"
+                  else
+                    echo "Resource group $(resourceGroupName) already exists."
+                  fi
+
+            - task: TerraformTaskV4@4
+              displayName: 'Terraform Init'
+              inputs:
+                provider: 'azurerm'
+                command: 'init'
+                workingDirectory: '$(System.DefaultWorkingDirectory)/steps/deploy-infra'
+                backendServiceArm: ${{ parameters.serviceEndpointName }}
+                backendAzureRmResourceGroupName: '$(terraformStateResourceGroup)'
+                backendAzureRmStorageAccountName: '$(terraformStorageAccount)'
+                backendAzureRmContainerName: '$(terraformStorageContainer)'
+                backendAzureRmKey: '$(terraformStateFile)'
+
+            - task: TerraformTaskV4@4
+              displayName: 'Terraform Plan'
+              inputs:
+                provider: 'azurerm'
+                command: 'plan'
+                workingDirectory: '$(System.DefaultWorkingDirectory)/steps/deploy-infra'
+                commandOptions: '-var-file=vars.tfvars -out=tfplan'
+                environmentServiceNameAzureRM: ${{ parameters.serviceEndpointName }}
+
+            - task: TerraformTaskV4@4
+              displayName: 'Terraform Apply'
+              inputs:
+                provider: 'azurerm'
+                command: 'apply'
+                workingDirectory: '$(System.DefaultWorkingDirectory)/steps/deploy-infra'
+                commandOptions: 'tfplan'
+                environmentServiceNameAzureRM: ${{ parameters.serviceEndpointName }}

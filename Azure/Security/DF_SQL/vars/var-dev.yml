@@ -1,0 +1,30 @@
+# vars/var-dev.yml - Development environment variables
+variables:
+  - name: resourceName
+    value: 'data-integration-dev'
+  - name: env
+    value: 'dev'
+  - name: jobEnv
+    value: 'data-integration-dev'
+  - name: serviceEndpointName
+    value: 'Azure-Dev-ServiceConnection'
+  - name: terraformStateFile
+    value: 'data-integration-dev.tfstate'
+  - name: subscriptionId
+    value: '__SUBSCRIPTION_ID__'
+  - name: resourceGroupName
+    value: 'data-integration-dev-rg'
+  - name: location
+    value: 'East US'
+  - name: sqlServerName
+    value: 'data-integration-dev-sql'
+  - name: sqlDatabaseName
+    value: 'data-integration-dev-db'
+  - name: sqlAdminUser
+    value: 'sqladmin'
+  - name: sqlAdminPassword
+    value: '$(sqlAdminPasswordDev)'
+  - name: keyVaultName
+    value: 'data-int-dev-kv'
+  - name: dataFactoryName
+    value: 'data-integration-dev-adf'
