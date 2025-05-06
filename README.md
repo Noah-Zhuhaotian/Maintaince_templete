@@ -1,13 +1,13 @@
 # Recording Maintaince_templete from previous projects
 
 ### Azure
-1. [Deploy Applications To Azure](/Azure/DeployApplicationsToAzure/): The templetes to deploy application on Azure.
-*Reference: [Deploying Applications with Azure DevOps](https://github.com/Noah-Zhuhaotian/Documents/blob/main/Azure/Azure-DevOps/Deploying-Applications-with-Azure-DevOps.md)*
+1. [Deploy Applications To Azure](/Azure/DeployApplicationsToAzure/): The templetes to deploy application on Azure.  
+*(Reference: [Deploying Applications with Azure DevOps](https://github.com/Noah-Zhuhaotian/Documents/blob/main/Azure/Azure-DevOps/Deploying-Applications-with-Azure-DevOps.md))*
 
 2. [AKS](/Azure/AKS/): AKS cluster maintanice scrips.  
    
 3. [Setting Up Secure Connections in Azure Data Factory with Key Vault](/Azure/Security/DF_SQL/): A templete of creating a linked service in Azure Data Factory that connects to Azure SQL Database using Microsoft SQL Server authentication, with the password securely stored in Azure Key Vault.  
-*Reference: [Setting Up Secure Connections in Azure Data Factory with Key Vault](https://github.com/Noah-Zhuhaotian/Documents/blob/main/Azure/Azure-DevOps/Deploying-Applications-with-Azure-DevOps.md)*
+*(Reference: [Setting Up Secure Connections in Azure Data Factory with Key Vault](https://github.com/Noah-Zhuhaotian/Documents/blob/main/Azure/Azure-DevOps/Deploying-Applications-with-Azure-DevOps.md))*
 
 ### AWS
 1. [Demo-Tomcat](/AWS/Demo-Tomcat/): Deploying a Java Application to Amazon EC2 Using CodePipeline and CodeDeploy.  
